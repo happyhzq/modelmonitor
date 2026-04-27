@@ -177,7 +177,7 @@ function App() {
           </div>
           <div>
             <h1>AI Model Monitor</h1>
-            <p>全球模型与 Agent 调用监测</p>
+            <p>接入数据源的模型与 Agent 用量监测</p>
           </div>
         </div>
 
@@ -195,7 +195,7 @@ function App() {
             className={view === "agents" ? "active" : ""}
             type="button"
             onClick={() => setView("agents")}
-            title="Agent 调用监控"
+            title="Agent token 与调用监控"
           >
             <Bot size={17} aria-hidden="true" />
             Agent
@@ -205,7 +205,7 @@ function App() {
         <div className="topbar-meta">
           <span className={`status-badge ${apiError ? "warning" : telemetry.sourceMode}`}>
             <DatabaseZap size={15} aria-hidden="true" />
-            {apiError ? "API 未连接" : telemetry.sourceMode === "live" ? "真实数据" : "示例遥测"}
+            {apiError ? "API 未连接" : telemetry.sourceMode === "live" ? "接入源数据" : "示例遥测"}
           </span>
           <span className="last-update">
             <CalendarDays size={15} aria-hidden="true" />
@@ -217,14 +217,16 @@ function App() {
       <section className="dashboard">
         <div className="dashboard-heading">
           <div>
-            <span className="eyebrow">{view === "models" ? "Model Tokens" : "Agent Invocations"}</span>
-            <h2>{view === "models" ? "全球 AI 模型使用量" : "全球 Agent 调用量"}</h2>
+            <span className="eyebrow">{view === "models" ? "Model Tokens" : "Agent Tokens"}</span>
+            <h2>{view === "models" ? "AI 模型 token 用量" : "Agent token 与估算调用"}</h2>
           </div>
           <div className="scope-copy">
             <Globe2 size={17} aria-hidden="true" />
             {activeDates[0]} 至 {activeDates[activeDates.length - 1]}
           </div>
         </div>
+
+        <DataScopeBanner telemetry={telemetry} />
 
         <FilterBar
           view={view}
@@ -352,6 +354,38 @@ function FilterBar({
           ))}
         </select>
       </label>
+    </section>
+  );
+}
+
+function DataScopeBanner({ telemetry }: { telemetry: TelemetryPayload }) {
+  const ignored = new Set(["dedupe", "mysql", "mysql-read", "sample"]);
+  const readySources = telemetry.sourceReadiness
+    .filter((item) => item.status === "ready" && !ignored.has(item.id ?? "") && (item.records ?? 0) > 0)
+    .map((item) => item.label);
+  const unknownCountryRows = [...telemetry.modelUsageRecords, ...telemetry.agentUsageRecords].filter(
+    (record) => !isKnownCountry(record),
+  ).length;
+  const estimatedAgentRows = telemetry.agentUsageRecords.filter((record) => record.isEstimate).length;
+  const sourceText = readySources.length ? readySources.slice(0, 3).join("、") : "MySQL / 已配置源";
+
+  return (
+    <section className="scope-banner" aria-label="数据口径">
+      <div>
+        <DatabaseZap size={16} aria-hidden="true" />
+        <span>接入源口径</span>
+        <strong>{telemetry.sourceMode === "sample" ? "示例数据" : sourceText}</strong>
+      </div>
+      <div>
+        <Globe2 size={16} aria-hidden="true" />
+        <span>国家拆分</span>
+        <strong>{unknownCountryRows ? "未知国家不进入国家榜" : "可按国家拆分"}</strong>
+      </div>
+      <div>
+        <CircleAlert size={16} aria-hidden="true" />
+        <span>口径边界</span>
+        <strong>{estimatedAgentRows ? "Agent 调用含估算" : "不等同于全球全量"}</strong>
+      </div>
     </section>
   );
 }
@@ -518,7 +552,7 @@ function ModelDashboard({
         <Panel title="供应商份额" icon={BarChart3} action={<span className="panel-note">总 token</span>}>
           <HorizontalBarChart rows={providerRows} valueFormatter={formatTokens} />
         </Panel>
-        <Panel title="国家热度" icon={Globe2} action={<span className="panel-note">前 12</span>}>
+        <Panel title="已知国家拆分" icon={Globe2} action={<span className="panel-note">前 12</span>}>
           <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatTokens} />
         </Panel>
       </section>
@@ -606,6 +640,7 @@ function AgentDashboard({
   const avgSuccess = weightedAverage(filteredRecords, "successRate", "invocations");
   const avgSteps = weightedAverage(filteredRecords, "avgSteps", "invocations");
   const dailyDelta = delta(latestInvocations, previousInvocations);
+  const hasEstimatedRecords = filteredRecords.some((record) => record.isEstimate);
 
   const timeSeries = useMemo(
     () => buildAgentTimeSeries(filteredRecords, activeDates),
@@ -629,9 +664,9 @@ function AgentDashboard({
       <section className="metric-grid">
         <MetricCard
           icon={Bot}
-          label="Agent 调用"
+          label="估算调用"
           value={formatCompact(totalInvocations)}
-          detail={`${latestRecordDate} ${formatCompact(latestInvocations)}`}
+          detail={hasEstimatedRecords ? "公开 token 按 8k/次折算" : `${latestRecordDate} ${formatCompact(latestInvocations)}`}
           tone="blue"
           delta={dailyDelta}
         />
@@ -639,27 +674,27 @@ function AgentDashboard({
           icon={Workflow}
           label="工具调用"
           value={formatCompact(totalToolCalls)}
-          detail={`${formatRatio(totalToolCalls, totalInvocations)} 次 / 调用`}
+          detail={totalToolCalls ? `${formatRatio(totalToolCalls, totalInvocations)} 次 / 调用` : "公开源未披露"}
           tone="green"
         />
         <MetricCard
           icon={CheckCircle2}
           label="成功率"
           value={formatPercent(avgSuccess / 100)}
-          detail={`平均 ${avgSteps.toFixed(1)} 步`}
+          detail={hasEstimatedRecords ? "公开源未披露真实成功率" : `平均 ${avgSteps.toFixed(1)} 步`}
           tone="orange"
         />
         <MetricCard
           icon={DatabaseZap}
           label="Agent token"
           value={formatTokens(totalTokens)}
-          detail="推理与工具上下文"
+          detail="Agent/App 上下文 token"
           tone="purple"
         />
       </section>
 
       <section className="content-grid primary-grid">
-        <Panel title="每日 Agent 调用趋势" icon={LineChart} action={<span className="panel-note">按类型堆叠</span>}>
+        <Panel title="每日估算调用趋势" icon={LineChart} action={<span className="panel-note">按类型堆叠</span>}>
           <div className="chart-frame tall">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeSeries} margin={{ top: 10, right: 22, left: 0, bottom: 0 }}>
@@ -689,13 +724,13 @@ function AgentDashboard({
           </div>
         </Panel>
 
-        <Panel title="框架份额" icon={Workflow} action={<span className="panel-note">调用量</span>}>
+        <Panel title="框架份额" icon={Workflow} action={<span className="panel-note">估算调用</span>}>
           <HorizontalBarChart rows={frameworkRows} valueFormatter={formatCompact} />
         </Panel>
       </section>
 
       <section className="content-grid secondary-grid">
-        <Panel title="Agent 国家热度" icon={Globe2} action={<span className="panel-note">前 12</span>}>
+        <Panel title="Agent 已知国家拆分" icon={Globe2} action={<span className="panel-note">前 12</span>}>
           <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatCompact} />
         </Panel>
         <Panel title="类型效率" icon={Gauge} action={<span className="panel-note">成功率 / 步数</span>}>
@@ -704,7 +739,7 @@ function AgentDashboard({
               <div key={row.category} className="agent-matrix-row">
                 <div>
                   <strong>{row.category}</strong>
-                  <span>{formatCompact(row.invocations)} 调用</span>
+                  <span>{formatCompact(row.invocations)} 估算调用</span>
                 </div>
                 <div className="matrix-values">
                   <span>{formatPercent(row.successRate)}</span>
@@ -716,14 +751,14 @@ function AgentDashboard({
         </Panel>
       </section>
 
-      <Panel title="Agent 明细" icon={Bot} action={<span className="panel-note">按调用量排序</span>}>
+      <Panel title="Agent 明细" icon={Bot} action={<span className="panel-note">按估算调用排序</span>}>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>类型</th>
                 <th>主框架</th>
-                <th>调用量</th>
+                <th>估算调用</th>
                 <th>完成任务</th>
                 <th>工具调用</th>
                 <th>成功率</th>
@@ -834,6 +869,10 @@ function CountryGrid({
 }) {
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
 
+  if (!rows.length) {
+    return <EmptyState message="当前接入源没有可用国家字段，国家榜已隐藏未知国家。" />;
+  }
+
   return (
     <div className="country-grid">
       {rows.map((row) => (
@@ -855,6 +894,10 @@ function CountryGrid({
       ))}
     </div>
   );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="empty-state">{message}</div>;
 }
 
 function TrendChip({ value, compact = false }: { value: number; compact?: boolean }) {
@@ -1029,21 +1072,38 @@ function aggregateCountries<T extends ModelUsageRecord | AgentUsageRecord>(
   metric: T extends ModelUsageRecord ? "tokens" : "invocations",
   total: number,
 ): AggregateRow[] {
-  return countries
-    .map((country, index) => {
-      const value = records
-        .filter((record) => record.country === country.name)
-        .reduce((accumulator, record) => accumulator + Number(record[metric as keyof T]), 0);
+  const rows = new Map<
+    string,
+    {
+      key: string;
+      value: number;
+      color: string;
+    }
+  >();
 
-      return {
-        key: `${country.code} ${country.name}`,
-        value,
-        color: countryPalette[index % countryPalette.length],
-        share: total ? value / total : 0,
+  records.filter(isKnownCountry).forEach((record) => {
+    const key = `${record.countryCode} ${record.country}`;
+    const existing =
+      rows.get(key) ??
+      {
+        key,
+        value: 0,
+        color: countryPalette[rows.size % countryPalette.length],
       };
-    })
-    .filter((row) => row.value > 0)
+    existing.value += Number(record[metric as keyof T]);
+    rows.set(key, existing);
+  });
+
+  return Array.from(rows.values())
+    .map((row) => ({
+      ...row,
+      share: total ? row.value / total : 0,
+    }))
     .sort((left, right) => right.value - left.value);
+}
+
+function isKnownCountry(record: Pick<ModelUsageRecord | AgentUsageRecord, "country" | "countryCode">) {
+  return record.country !== "未知" && record.countryCode !== "ZZ";
 }
 
 function collectDates(modelRecords: ModelUsageRecord[], agentRecords: AgentUsageRecord[]) {
@@ -1091,7 +1151,9 @@ function aggregateModelRows(records: ModelUsageRecord[], total: number, latestDa
 
     current.tokens += record.tokens;
     current.requests += record.requests;
-    current.countries.add(record.country);
+    if (isKnownCountry(record)) {
+      current.countries.add(record.country);
+    }
 
     if (record.date === latestDate) {
       current.latestTokens += record.tokens;

@@ -65,6 +65,8 @@ export function toModelRecord(
     activeUsers: Math.max(0, Math.round(nonNegative(record.activeUsers))),
     avgLatencyMs: Math.max(0, Math.round(nonNegative(record.avgLatencyMs))),
     coverage: clamp(nonNegative(record.coverage || 100), 0, 100),
+    isEstimate: Boolean(record.isEstimate),
+    metricNote: clean(record.metricNote) || undefined,
     source,
     sourceKind,
     sourceRecordId,
@@ -96,6 +98,8 @@ export function toAgentRecord(
     successRate: clamp(nonNegative(record.successRate || 100), 0, 100),
     avgSteps: nonNegative(record.avgSteps || 1),
     handoffRate: clamp(nonNegative(record.handoffRate), 0, 100),
+    isEstimate: Boolean(record.isEstimate),
+    metricNote: clean(record.metricNote) || undefined,
     source,
     sourceKind,
     sourceRecordId,
@@ -152,14 +156,28 @@ export function normalizeDate(value: unknown) {
 }
 
 export function dateDaysAgo(days: number) {
-  const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  start.setUTCDate(start.getUTCDate() - Math.max(0, days - 1));
-  return start.toISOString().slice(0, 10);
+  return shiftISODate(todayISO(), -Math.max(0, days - 1));
 }
 
 export function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateInTimezone(new Date(), process.env.MODEL_MONITOR_TIMEZONE || "Asia/Shanghai");
+}
+
+function formatDateInTimezone(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function shiftISODate(date: string, days: number) {
+  const shifted = new Date(`${date}T00:00:00.000Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
 }
 
 export function nonNegative(value: unknown) {

@@ -14,6 +14,10 @@ export type ModelUsageRecord = {
   activeUsers: number;
   avgLatencyMs: number;
   coverage: number;
+  source?: string;
+  sourceKind?: string;
+  isEstimate?: boolean;
+  metricNote?: string;
 };
 
 export type AgentUsageRecord = {
@@ -30,6 +34,10 @@ export type AgentUsageRecord = {
   successRate: number;
   avgSteps: number;
   handoffRate: number;
+  source?: string;
+  sourceKind?: string;
+  isEstimate?: boolean;
+  metricNote?: string;
 };
 
 export type ProviderProfile = {

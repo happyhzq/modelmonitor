@@ -89,7 +89,7 @@ export async function buildTelemetry(days: number): Promise<TelemetryPayload> {
       sourceReadiness: [
         status("sample", "示例遥测", "已启用", "ready", {
           records: sampleModels.length + sampleAgents.length,
-          message: "没有可用真实数据源时自动兜底；生产请配置 .env",
+          message: "没有可用接入源数据时自动兜底；生产请配置 .env",
         }),
         ...mysqlRead.statuses,
         ...allStatuses,
@@ -260,6 +260,10 @@ function stripModelMetadata(records: NormalizedModelUsageRecord[]): ModelUsageRe
       activeUsers,
       avgLatencyMs,
       coverage,
+      source,
+      sourceKind,
+      isEstimate,
+      metricNote,
     }) => ({
       date,
       provider,
@@ -276,6 +280,10 @@ function stripModelMetadata(records: NormalizedModelUsageRecord[]): ModelUsageRe
       activeUsers,
       avgLatencyMs,
       coverage,
+      source,
+      sourceKind,
+      isEstimate,
+      metricNote,
     }),
   );
 }
@@ -296,6 +304,10 @@ function stripAgentMetadata(records: NormalizedAgentUsageRecord[]): AgentUsageRe
       successRate,
       avgSteps,
       handoffRate,
+      source,
+      sourceKind,
+      isEstimate,
+      metricNote,
     }) => ({
       date,
       category,
@@ -310,6 +322,10 @@ function stripAgentMetadata(records: NormalizedAgentUsageRecord[]): AgentUsageRe
       successRate,
       avgSteps,
       handoffRate,
+      source,
+      sourceKind,
+      isEstimate,
+      metricNote,
     }),
   );
 }

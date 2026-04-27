@@ -78,3 +78,12 @@ Runtime behavior:
 - Deduplicate in `server/aggregate.ts`.
 - Upsert records into MySQL.
 - Read the requested date range back from MySQL when `MODEL_MONITOR_MYSQL_READ=true`.
+- Preserve source scope fields (`source_id`, `source_kind`, `is_estimate`, `metric_note`) so the frontend can distinguish direct usage from public statistics and estimates.
+- Prune stale rows for dates represented in the current successful sync, unless a blocking source error is present or `MODEL_MONITOR_MYSQL_PRUNE=false`.
+
+## Data truthfulness notes
+
+- Public OpenRouter model rankings are real OpenRouter usage statistics, not global all-provider traffic.
+- Public OpenRouter Apps/Agents rankings expose token volume only; invocation counts are estimated by this project.
+- Hugging Face downloads are discovery/heat signals and are intentionally excluded from token totals.
+- Country charts only use rows with a known country or region-derived country. Unknown `ZZ` rows are excluded from country share charts.

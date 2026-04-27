@@ -1,6 +1,6 @@
 # AI Model Monitor
 
-用于监控 AI 模型 token 用量与 Agent 调用量的生产式 dashboard。项目包含 React 前端、Node 聚合 API、数据源连接器、去重聚合和示例数据兜底。
+用于监控已接入数据源里的 AI 模型 token 用量与 Agent/App token、调用量的生产式 dashboard。项目包含 React 前端、Node 聚合 API、数据源连接器、去重聚合、MySQL 持久化和示例数据兜底。
 
 重要边界：各供应商不会公开“全球所有客户的总 token 调用量”。生产里的“全球总量”只能由你有权限的数据源汇总，例如组织级 usage API、云监控、账单导出、网关日志和 Agent trace。
 
@@ -64,7 +64,7 @@ MODEL_MONITOR_PUBLIC_WEB=true
 MODEL_MONITOR_PUBLIC_WEB_TTL_SECONDS=900
 ```
 
-OpenRouter 模型榜里的数据包含按日 prompt/completion/reasoning token 和请求数，计入模型 token。OpenRouter Apps/Agents 页面公开的是 token，不公开调用次数；项目会把 token 计入 Agent token，并用 `8000 tokens / 调用` 估算调用量，数据源状态里会明确标注。
+OpenRouter 模型榜里的数据包含按日 prompt/completion/reasoning token 和请求数，计入模型 token，口径仅代表 OpenRouter 流量。OpenRouter Apps/Agents 页面公开的是 token，不公开调用次数，也未披露明确日级时间粒度；项目会按抓取日落库，把 token 计入 Agent token，并用 `8000 tokens / 调用` 估算调用量，数据源状态和前端会明确标注。
 
 MySQL 配置写入本地 `.env`，不要提交到 git：
 
@@ -83,6 +83,12 @@ MODEL_MONITOR_MYSQL_READ=true
 - `globalaitokenusage`：清洗去重后的日级模型 token 用量。
 - `globalagentusage`：清洗去重后的日级 Agent/App token 与调用量。
 - `siteusers`：预留给网站用户、角色和扩展 metadata。
+
+MySQL 持久化行为：
+
+- `DATE` 字段按字符串读回，避免服务器时区把日期偏移到前一天。
+- 写入会保留 `source_id`、`source_kind`、`is_estimate`、`metric_note`，用于前端展示数据口径。
+- 当本次同步没有阻塞型数据源错误时，会清理同日期范围内已不在当前聚合结果里的旧行，避免公开榜单变化后残留过期记录。
 
 ## 标准化字段
 

@@ -30,23 +30,37 @@ export async function loadPublicWebSources(context: ConnectorContext): Promise<C
     return cache.result;
   }
 
-  const results = await Promise.allSettled([
-    loadOpenRouterModelRankings(context),
-    loadOpenRouterAppRankings(context),
-    loadHuggingFaceSignals(),
-  ]);
+  const loaders = [
+    {
+      id: "openrouter-public-rankings",
+      label: "OpenRouter 模型公开榜",
+      load: () => loadOpenRouterModelRankings(context),
+    },
+    {
+      id: "openrouter-public-apps",
+      label: "OpenRouter App/Agent 公开榜",
+      load: () => loadOpenRouterAppRankings(context),
+    },
+    {
+      id: "huggingface-model-downloads",
+      label: "Hugging Face 模型下载热度",
+      load: () => loadHuggingFaceSignals(),
+    },
+  ];
+  const results = await Promise.allSettled(loaders.map((loader) => loader.load()));
   const modelRecords: NormalizedModelUsageRecord[] = [];
   const agentRecords: NormalizedAgentUsageRecord[] = [];
   const statuses = [];
 
-  for (const result of results) {
+  for (const [index, result] of results.entries()) {
     if (result.status === "fulfilled") {
       modelRecords.push(...result.value.modelRecords);
       agentRecords.push(...result.value.agentRecords);
       statuses.push(...result.value.statuses);
     } else {
+      const loader = loaders[index];
       statuses.push(
-        status("public-web-error", "公开 Web 数据", "错误", "error", {
+        status(loader.id, loader.label, "错误", "error", {
           message: result.reason instanceof Error ? result.reason.message : String(result.reason),
         }),
       );
@@ -98,6 +112,7 @@ async function loadOpenRouterModelRankings(context: ConnectorContext): Promise<C
         completionTokens: completionTokens + reasoningTokens,
         requests,
         coverage: 100,
+        metricNote: "OpenRouter public rankings; scope is OpenRouter traffic only",
       }),
     );
   }
@@ -157,6 +172,8 @@ async function loadOpenRouterAppRankings(context: ConnectorContext): Promise<Con
         successRate: 100,
         avgSteps: 1,
         handoffRate: 0,
+        isEstimate: true,
+        metricNote: "OpenRouter Apps exposes tokens only; invocations are estimated at 8000 tokens per call",
       }),
     );
   }
@@ -167,7 +184,7 @@ async function loadOpenRouterAppRankings(context: ConnectorContext): Promise<Con
     statuses: [
       status("openrouter-public-apps", "OpenRouter App/Agent 公开榜", records.length ? "已实时抓取" : "无记录", records.length ? "ready" : "pending", {
         records: records.length,
-        message: "公开页面公布 token；调用次数按 8k tokens/调用估算，范围仅代表 OpenRouter App/Agent 流量",
+        message: "公开页面公布 token 但不披露时间粒度和调用次数；按抓取日落库，调用次数按 8k tokens/调用估算，范围仅代表 OpenRouter App/Agent 流量",
         docs: openRouterAppsUrl,
       }),
     ],
