@@ -15,6 +15,10 @@ export function registryStatuses(): SourceStatus[] {
       message: "支持 gen_ai.usage.input_tokens、gen_ai.usage.output_tokens、agent trace 字段",
       docs: "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
     }),
+    status("langsmith-helicone", "LangSmith / Helicone", "HTTP/导出接入", "pending", {
+      message: "可通过 MODEL_MONITOR_HTTP_JSON_SOURCES 或文件导出接入 request/trace token usage",
+      docs: "https://docs.helicone.ai/",
+    }),
     status("alibaba-dashscope", "Alibaba DashScope / BSS", "文件/账单接入", "pending", {
       message: "支持 DashScope 响应 usage、BSS 账单导出或网关日志",
       docs: "https://help.aliyun.com/zh/model-studio/use-qwen-by-calling-api",

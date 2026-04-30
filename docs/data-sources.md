@@ -13,6 +13,8 @@ This project supports direct API connectors and normalized exports. Direct API c
 | Anthropic Usage & Cost API | `anthropicConnector.ts` | `ANTHROPIC_ADMIN_KEY` |
 | OpenRouter Generation API | `openRouterConnector.ts` | `OPENROUTER_API_KEY`, `OPENROUTER_GENERATION_IDS` |
 | Azure OpenAI Monitor | `azureMonitorConnector.ts` | `AZURE_MONITOR_BEARER_TOKEN`, `AZURE_OPENAI_RESOURCE_IDS` |
+| Cloudflare AI Gateway Logs | `cloudflareAiGatewayConnector.ts` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_GATEWAY_IDS` |
+| Langfuse Observations API | `langfuseConnector.ts` | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` |
 | Internal telemetry API | `httpJsonConnector.ts` | `MODEL_MONITOR_HTTP_JSON_SOURCES` |
 
 ## Export/log connectors
@@ -23,6 +25,8 @@ Supported source families:
 
 - AWS Bedrock CloudWatch metrics: `Invocations`, `InputTokenCount`, `OutputTokenCount`
 - Google Vertex / Gemini usage metadata and Cloud Billing exports
+- Cloudflare AI Gateway request logs: `provider`, `model`, `tokens_in`, `tokens_out`
+- Langfuse generation observations: `usage`, `usageDetails`, `inputUsage`, `outputUsage`, `totalUsage`
 - OpenTelemetry GenAI semantic convention fields
 - Alibaba DashScope response usage and BSS billing exports
 - Mistral / DeepSeek API usage responses
@@ -43,6 +47,29 @@ Agent aliases:
 - Tools: `toolCalls`, `tool_calls`, `gen_ai.tool.call.count`
 - Success: `successRate`, `success_rate`, `success_pct`
 - Handoff: `handoffRate`, `handoff_rate`, `human_handoff_rate`
+
+## Direct connector configuration
+
+Cloudflare AI Gateway:
+
+```bash
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_AI_GATEWAY_IDS=gateway-a,gateway-b
+CLOUDFLARE_AI_GATEWAY_MAX_PAGES=10
+CLOUDFLARE_AI_GATEWAY_PER_PAGE=100
+```
+
+Langfuse:
+
+```bash
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_OBSERVATION_TYPES=GENERATION
+LANGFUSE_MAX_PAGES=20
+LANGFUSE_LIMIT=100
+```
 
 ## Production deployment
 

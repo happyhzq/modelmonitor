@@ -14,8 +14,10 @@ import type {
 } from "./connectors/types";
 import { loadAnthropicUsage } from "./connectors/anthropicConnector";
 import { loadAzureMonitorUsage } from "./connectors/azureMonitorConnector";
+import { loadCloudflareAiGatewayUsage } from "./connectors/cloudflareAiGatewayConnector";
 import { loadFileSources } from "./connectors/fileConnector";
 import { loadHttpJsonSources } from "./connectors/httpJsonConnector";
+import { loadLangfuseUsage } from "./connectors/langfuseConnector";
 import { loadOpenAIUsage } from "./connectors/openaiConnector";
 import { loadOpenRouterUsage } from "./connectors/openRouterConnector";
 import { loadPublicWebSources } from "./connectors/publicWebConnector";
@@ -36,6 +38,8 @@ export async function buildTelemetry(days: number): Promise<TelemetryPayload> {
     loadAnthropicUsage,
     loadOpenRouterUsage,
     loadAzureMonitorUsage,
+    loadCloudflareAiGatewayUsage,
+    loadLangfuseUsage,
     loadHttpJsonSources,
     loadPublicWebSources,
   ];
