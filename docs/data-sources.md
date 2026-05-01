@@ -108,6 +108,7 @@ Runtime behavior:
 - Preserve source scope fields (`source_id`, `source_kind`, `is_estimate`, `metric_note`) so the frontend can distinguish direct usage from public statistics and estimates.
 - Prune stale rows only for authoritative owned sources (`gateway`, `trace`, `provider_api`, `cloud_metric`, `billing_export`) represented in the current successful sync, unless a blocking source error is present or `MODEL_MONITOR_MYSQL_PRUNE=false`.
 - Public statistics such as OpenRouter rankings are append/update only. They are not used to delete historical rows because public leaderboards are rolling views and can shrink after a day has already been captured.
+- Repeated public-stat writes keep the larger previously observed token/request values for the same date/model/country key, so a later smaller rolling snapshot cannot overwrite a fuller historical capture.
 
 ## Data truthfulness notes
 
