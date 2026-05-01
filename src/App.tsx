@@ -156,7 +156,7 @@ function App() {
     [telemetry.agentUsageRecords],
   );
   const viewDates = view === "models" ? modelDates : agentDates;
-  const activeDates = useMemo(() => viewDates.slice(-days), [viewDates, days]);
+  const activeDates = useMemo(() => buildContinuousDateWindow(viewDates, days), [viewDates, days]);
   const latestDate = viewDates.at(-1) ?? fallbackDateRange.at(-1) ?? "";
   const previousDate = viewDates.at(-2) ?? latestDate;
   const providerOptions = useMemo(() => {
@@ -1141,6 +1141,21 @@ function collectDates(modelRecords: ModelUsageRecord[], agentRecords: AgentUsage
     .sort();
 
   return dates.length ? dates : fallbackDateRange;
+}
+
+function buildContinuousDateWindow(dates: string[], days: number) {
+  const endDate = dates.at(-1) ?? fallbackDateRange.at(-1);
+  if (!endDate) {
+    return [];
+  }
+
+  return Array.from({ length: Math.max(1, days) }, (_, index) => shiftDate(endDate, index - days + 1));
+}
+
+function shiftDate(date: string, offset: number) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + offset);
+  return value.toISOString().slice(0, 10);
 }
 
 function collectRecordDates(records: Array<ModelUsageRecord | AgentUsageRecord>) {
