@@ -487,6 +487,32 @@ button {
   line-height: 1.5;
 }
 
+.loading-state {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 24px;
+  color: #475569;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.loading-state strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.loading-state span {
+  max-width: 480px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .country-cell {
   min-height: 82px;
   padding: 10px;

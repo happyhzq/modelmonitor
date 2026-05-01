@@ -99,6 +99,13 @@ const fallbackTelemetry: TelemetryPayload = {
     status: item.status as SourceReadiness["status"],
   })),
 };
+const emptyTelemetry: TelemetryPayload = {
+  generatedAt: new Date().toISOString(),
+  sourceMode: "live",
+  modelUsageRecords: [],
+  agentUsageRecords: [],
+  sourceReadiness: [],
+};
 
 function App() {
   const [view, setView] = useState<ViewMode>("models");
@@ -106,7 +113,8 @@ function App() {
   const [country, setCountry] = useState("all");
   const [modelProvider, setModelProvider] = useState("all");
   const [agentFramework, setAgentFramework] = useState("all");
-  const [telemetry, setTelemetry] = useState<TelemetryPayload>(fallbackTelemetry);
+  const [telemetry, setTelemetry] = useState<TelemetryPayload>(emptyTelemetry);
+  const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,11 +131,14 @@ function App() {
         if (!cancelled) {
           setTelemetry(payload);
           setApiError(null);
+          setIsLoading(false);
         }
       })
       .catch((error: Error) => {
         if (!cancelled) {
+          setTelemetry(fallbackTelemetry);
           setApiError(error.message);
+          setIsLoading(false);
         }
       });
 
@@ -203,9 +214,9 @@ function App() {
         </nav>
 
         <div className="topbar-meta">
-          <span className={`status-badge ${apiError ? "warning" : telemetry.sourceMode}`}>
+          <span className={`status-badge ${isLoading || apiError ? "warning" : telemetry.sourceMode}`}>
             <DatabaseZap size={15} aria-hidden="true" />
-            {apiError ? "API 未连接" : telemetry.sourceMode === "live" ? "接入源数据" : "示例遥测"}
+            {isLoading ? "数据加载中" : apiError ? "API 未连接" : telemetry.sourceMode === "live" ? "接入源数据" : "示例遥测"}
           </span>
           <span className="last-update">
             <CalendarDays size={15} aria-hidden="true" />
@@ -243,29 +254,45 @@ function App() {
           onAgentFrameworkChange={setAgentFramework}
         />
 
-        {view === "models" ? (
-          <ModelDashboard
-            records={telemetry.modelUsageRecords}
-            activeDates={activeDates}
-            latestDate={latestDate}
-            previousDate={previousDate}
-            country={country}
-            providerFilter={modelProvider}
-          />
+        {isLoading ? (
+          <LoadingDashboard />
         ) : (
-          <AgentDashboard
-            records={telemetry.agentUsageRecords}
-            activeDates={activeDates}
-            latestDate={latestDate}
-            previousDate={previousDate}
-            country={country}
-            frameworkFilter={agentFramework}
-          />
+          <>
+            {view === "models" ? (
+              <ModelDashboard
+                records={telemetry.modelUsageRecords}
+                activeDates={activeDates}
+                latestDate={latestDate}
+                previousDate={previousDate}
+                country={country}
+                providerFilter={modelProvider}
+              />
+            ) : (
+              <AgentDashboard
+                records={telemetry.agentUsageRecords}
+                activeDates={activeDates}
+                latestDate={latestDate}
+                previousDate={previousDate}
+                country={country}
+                frameworkFilter={agentFramework}
+              />
+            )}
+          </>
         )}
 
         <SourceStrip sourceReadiness={telemetry.sourceReadiness} apiError={apiError} />
       </section>
     </main>
+  );
+}
+
+function LoadingDashboard() {
+  return (
+    <section className="loading-state" aria-label="数据加载中">
+      <DatabaseZap size={22} aria-hidden="true" />
+      <strong>正在读取 MySQL 与接入源数据</strong>
+      <span>加载完成前不会展示示例遥测，避免刷新时出现数据跳变。</span>
+    </section>
   );
 }
 
