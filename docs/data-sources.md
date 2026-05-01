@@ -106,7 +106,8 @@ Runtime behavior:
 - Upsert records into MySQL.
 - Read the requested date range back from MySQL when `MODEL_MONITOR_MYSQL_READ=true`.
 - Preserve source scope fields (`source_id`, `source_kind`, `is_estimate`, `metric_note`) so the frontend can distinguish direct usage from public statistics and estimates.
-- Prune stale rows for dates represented in the current successful sync, unless a blocking source error is present or `MODEL_MONITOR_MYSQL_PRUNE=false`.
+- Prune stale rows only for authoritative owned sources (`gateway`, `trace`, `provider_api`, `cloud_metric`, `billing_export`) represented in the current successful sync, unless a blocking source error is present or `MODEL_MONITOR_MYSQL_PRUNE=false`.
+- Public statistics such as OpenRouter rankings are append/update only. They are not used to delete historical rows because public leaderboards are rolling views and can shrink after a day has already been captured.
 
 ## Data truthfulness notes
 

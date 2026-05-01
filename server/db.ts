@@ -307,9 +307,13 @@ async function pruneStaleRows(connection: mysql.Connection, payload: TelemetryPa
     return { deleted: 0, skipped: true, reason: "存在数据源错误，已跳过旧行清理" };
   }
 
-  const modelDeleted = await pruneModelRows(connection, payload.modelUsageRecords);
-  const agentDeleted = await pruneAgentRows(connection, payload.agentUsageRecords);
+  const modelDeleted = await pruneModelRows(connection, payload.modelUsageRecords.filter(isPruneableRecord));
+  const agentDeleted = await pruneAgentRows(connection, payload.agentUsageRecords.filter(isPruneableRecord));
   return { deleted: modelDeleted + agentDeleted, skipped: false, reason: "" };
+}
+
+function isPruneableRecord(record: Pick<ModelUsageRecord | AgentUsageRecord, "sourceKind">) {
+  return ["gateway", "trace", "provider_api", "cloud_metric", "billing_export"].includes(record.sourceKind ?? "");
 }
 
 async function pruneModelRows(connection: mysql.Connection, records: ModelUsageRecord[]) {
@@ -322,7 +326,7 @@ async function pruneModelRows(connection: mysql.Connection, records: ModelUsageR
   const [rows] = await connection.query<mysql.RowDataPacket[]>(
     `SELECT id, usage_date, provider, model, country_code
      FROM globalaitokenusage
-     WHERE usage_date IN (?)`,
+     WHERE usage_date IN (?) AND source_kind IN ('gateway', 'trace', 'provider_api', 'cloud_metric', 'billing_export')`,
     [dates],
   );
   const staleIds = rows
@@ -348,7 +352,7 @@ async function pruneAgentRows(connection: mysql.Connection, records: AgentUsageR
   const [rows] = await connection.query<mysql.RowDataPacket[]>(
     `SELECT id, usage_date, framework, category, country_code
      FROM globalagentusage
-     WHERE usage_date IN (?)`,
+     WHERE usage_date IN (?) AND source_kind IN ('gateway', 'trace', 'provider_api', 'cloud_metric', 'billing_export')`,
     [dates],
   );
   const staleIds = rows
