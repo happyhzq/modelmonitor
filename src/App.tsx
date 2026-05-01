@@ -85,10 +85,18 @@ type TelemetryPayload = {
   sourceReadiness: SourceReadiness[];
 };
 
+type CachedTelemetry = {
+  payload: TelemetryPayload;
+  signature: string;
+  cachedAt: string;
+};
+
 const daysOptions = [7, 14, 30];
 const otherProviderKey = "其他供应商";
 const maxTrendProviders = 8;
 const maxProviderShareRows = 10;
+const telemetryCacheKey = "modelmonitor.telemetry.v1";
+const telemetryCacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 const fallbackTelemetry: TelemetryPayload = {
   generatedAt: new Date().toISOString(),
   sourceMode: "sample",
@@ -108,13 +116,16 @@ const emptyTelemetry: TelemetryPayload = {
 };
 
 function App() {
+  const [initialCache] = useState<CachedTelemetry | undefined>(() => readTelemetryCache());
   const [view, setView] = useState<ViewMode>("models");
   const [days, setDays] = useState(14);
   const [country, setCountry] = useState("all");
   const [modelProvider, setModelProvider] = useState("all");
   const [agentFramework, setAgentFramework] = useState("all");
-  const [telemetry, setTelemetry] = useState<TelemetryPayload>(emptyTelemetry);
-  const [isLoading, setIsLoading] = useState(true);
+  const [telemetry, setTelemetry] = useState<TelemetryPayload>(() => initialCache?.payload ?? emptyTelemetry);
+  const [isLoading, setIsLoading] = useState(() => !initialCache);
+  const [isRefreshing, setIsRefreshing] = useState(() => Boolean(initialCache));
+  const [isCacheBacked, setIsCacheBacked] = useState(() => Boolean(initialCache));
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -129,16 +140,25 @@ function App() {
       })
       .then((payload) => {
         if (!cancelled) {
-          setTelemetry(payload);
+          const signature = telemetrySignature(payload);
+          if (!initialCache || initialCache.signature !== signature) {
+            setTelemetry(payload);
+          }
+          writeTelemetryCache(payload, signature);
           setApiError(null);
           setIsLoading(false);
+          setIsRefreshing(false);
+          setIsCacheBacked(false);
         }
       })
       .catch((error: Error) => {
         if (!cancelled) {
-          setTelemetry(fallbackTelemetry);
+          if (!initialCache) {
+            setTelemetry(fallbackTelemetry);
+          }
           setApiError(error.message);
           setIsLoading(false);
+          setIsRefreshing(false);
         }
       });
 
@@ -214,9 +234,9 @@ function App() {
         </nav>
 
         <div className="topbar-meta">
-          <span className={`status-badge ${isLoading || apiError ? "warning" : telemetry.sourceMode}`}>
+          <span className={`status-badge ${isLoading || isRefreshing || apiError ? "warning" : telemetry.sourceMode}`}>
             <DatabaseZap size={15} aria-hidden="true" />
-            {isLoading ? "数据加载中" : apiError ? "API 未连接" : telemetry.sourceMode === "live" ? "接入源数据" : "示例遥测"}
+            {statusLabel({ isLoading, isRefreshing, isCacheBacked, apiError, sourceMode: telemetry.sourceMode })}
           </span>
           <span className="last-update">
             <CalendarDays size={15} aria-hidden="true" />
@@ -294,6 +314,31 @@ function LoadingDashboard() {
       <span>加载完成前不会展示示例遥测，避免刷新时出现数据跳变。</span>
     </section>
   );
+}
+
+function statusLabel({
+  isLoading,
+  isRefreshing,
+  isCacheBacked,
+  apiError,
+  sourceMode,
+}: {
+  isLoading: boolean;
+  isRefreshing: boolean;
+  isCacheBacked: boolean;
+  apiError: string | null;
+  sourceMode: TelemetryPayload["sourceMode"];
+}) {
+  if (isLoading) {
+    return "数据加载中";
+  }
+  if (isCacheBacked || isRefreshing) {
+    return apiError ? "缓存数据" : "缓存数据 · 更新中";
+  }
+  if (apiError) {
+    return "API 未连接";
+  }
+  return sourceMode === "live" ? "接入源数据" : "示例遥测";
 }
 
 function FilterBar({
@@ -1131,6 +1176,116 @@ function aggregateCountries<T extends ModelUsageRecord | AgentUsageRecord>(
 
 function isKnownCountry(record: Pick<ModelUsageRecord | AgentUsageRecord, "country" | "countryCode">) {
   return record.country !== "未知" && record.countryCode !== "ZZ";
+}
+
+function readTelemetryCache(): CachedTelemetry | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(telemetryCacheKey);
+    if (!rawValue) {
+      return undefined;
+    }
+
+    const cached = JSON.parse(rawValue) as Partial<CachedTelemetry>;
+    if (!cached.payload || !isTelemetryPayload(cached.payload) || !cached.cachedAt || !cached.signature) {
+      return undefined;
+    }
+
+    const cachedAt = Date.parse(cached.cachedAt);
+    if (!Number.isFinite(cachedAt) || Date.now() - cachedAt > telemetryCacheMaxAgeMs) {
+      window.localStorage.removeItem(telemetryCacheKey);
+      return undefined;
+    }
+
+    return {
+      payload: cached.payload,
+      signature: cached.signature,
+      cachedAt: cached.cachedAt,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function writeTelemetryCache(payload: TelemetryPayload, signature = telemetrySignature(payload)) {
+  if (typeof window === "undefined" || payload.sourceMode !== "live" || !hasTelemetryRows(payload)) {
+    return;
+  }
+
+  try {
+    const cached: CachedTelemetry = {
+      payload,
+      signature,
+      cachedAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(telemetryCacheKey, JSON.stringify(cached));
+  } catch {
+    // Storage can be unavailable or full; live API data still renders normally.
+  }
+}
+
+function isTelemetryPayload(value: unknown): value is TelemetryPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const payload = value as TelemetryPayload;
+  return (
+    typeof payload.generatedAt === "string" &&
+    (payload.sourceMode === "live" || payload.sourceMode === "sample") &&
+    Array.isArray(payload.modelUsageRecords) &&
+    Array.isArray(payload.agentUsageRecords) &&
+    Array.isArray(payload.sourceReadiness)
+  );
+}
+
+function hasTelemetryRows(payload: TelemetryPayload) {
+  return payload.modelUsageRecords.length > 0 || payload.agentUsageRecords.length > 0;
+}
+
+function telemetrySignature(payload: TelemetryPayload) {
+  return hashString(
+    JSON.stringify({
+      sourceMode: payload.sourceMode,
+      models: payload.modelUsageRecords.map((record) => [
+        record.date,
+        record.provider,
+        record.model,
+        record.countryCode,
+        record.tokens,
+        record.promptTokens,
+        record.completionTokens,
+        record.requests,
+        record.activeUsers,
+        record.avgLatencyMs,
+        record.coverage,
+      ]),
+      agents: payload.agentUsageRecords.map((record) => [
+        record.date,
+        record.framework,
+        record.category,
+        record.countryCode,
+        record.invocations,
+        record.completedTasks,
+        record.toolCalls,
+        record.tokens,
+        record.successRate,
+        record.avgSteps,
+        record.handoffRate,
+      ]),
+    }),
+  );
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function collectDates(modelRecords: ModelUsageRecord[], agentRecords: AgentUsageRecord[]) {
