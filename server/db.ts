@@ -203,7 +203,7 @@ export async function upsertTelemetryToMysql(payload: TelemetryPayload): Promise
         records: payload.modelUsageRecords.length + payload.agentUsageRecords.length,
         message: `写入 ${mysqlConfig().database}.globalaitokenusage / globalagentusage${
           pruneResult.skipped ? `；${pruneResult.reason}` : `；清理旧行 ${pruneResult.deleted}`
-        }；原始快照${snapshotResult.inserted ? "已保存" : "已存在"} ${snapshotResult.records} 条`,
+        }；${rawSnapshotMessage(snapshotResult)}`,
       });
     } catch (error) {
       await connection.rollback();
@@ -262,6 +262,28 @@ export async function readTelemetryFromMysql(days: number) {
 
 async function persistRawTelemetrySnapshot(connection: mysql.Connection, payload: TelemetryPayload) {
   const records = payload.modelUsageRecords.length + payload.agentUsageRecords.length;
+  const sourceId = "aggregate-live-payload";
+  const minIntervalMinutes = Math.max(0, Math.round(Number(process.env.MODEL_MONITOR_RAW_SNAPSHOT_MINUTES || 300)));
+
+  if (minIntervalMinutes > 0) {
+    const [recentRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id
+       FROM telemetry_raw_snapshots
+       WHERE source_id = ? AND captured_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? MINUTE)
+       ORDER BY captured_at DESC
+       LIMIT 1`,
+      [sourceId, minIntervalMinutes],
+    );
+
+    if (recentRows.length) {
+      return {
+        state: "recent" as const,
+        records,
+        minIntervalMinutes,
+      };
+    }
+  }
+
   const snapshot = {
     sourceMode: payload.sourceMode,
     modelUsageRecords: payload.modelUsageRecords,
@@ -281,14 +303,24 @@ async function persistRawTelemetrySnapshot(connection: mysql.Connection, payload
      ON DUPLICATE KEY UPDATE
        captured_at = CURRENT_TIMESTAMP,
        updated_at = CURRENT_TIMESTAMP`,
-    [todayISO(), "aggregate-live-payload", "normalized_payload", payload.sourceMode, records, contentHash, snapshotPayload],
+    [todayISO(), sourceId, "normalized_payload", payload.sourceMode, records, contentHash, snapshotPayload],
   );
 
   return {
+    state: result.affectedRows === 1 ? ("saved" as const) : ("exists" as const),
     inserted: result.affectedRows === 1,
     records,
     contentHash,
+    minIntervalMinutes,
   };
+}
+
+function rawSnapshotMessage(result: Awaited<ReturnType<typeof persistRawTelemetrySnapshot>>) {
+  if (result.state === "recent") {
+    return `原始快照 ${result.minIntervalMinutes} 分钟内已有，已跳过 ${result.records} 条`;
+  }
+
+  return `原始快照${result.inserted ? "已保存" : "已存在"} ${result.records} 条`;
 }
 
 async function upsertModelRecords(connection: mysql.Connection, records: ModelUsageRecord[]) {
