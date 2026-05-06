@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import mysql from "mysql2/promise";
 import type { AgentUsageRecord, ModelUsageRecord } from "../src/data";
 import type { SourceStatus, TelemetryPayload } from "./connectors/types";
-import { dateDaysAgo, status } from "./connectors/utils";
+import { dateDaysAgo, status, todayISO } from "./connectors/utils";
 
 type MySqlConfig = {
   host: string;
@@ -92,6 +93,24 @@ export async function ensureMysqlSchema() {
         KEY idx_global_agent_usage_country (country_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+      CREATE TABLE IF NOT EXISTS telemetry_raw_snapshots (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        snapshot_date DATE NOT NULL,
+        captured_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        source_id VARCHAR(128) NOT NULL,
+        source_kind VARCHAR(64) NOT NULL,
+        source_mode VARCHAR(32) NOT NULL,
+        record_count INT UNSIGNED NOT NULL DEFAULT 0,
+        content_hash CHAR(64) NOT NULL,
+        payload LONGTEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_telemetry_raw_snapshot (snapshot_date, content_hash),
+        KEY idx_telemetry_raw_snapshots_date (snapshot_date),
+        KEY idx_telemetry_raw_snapshots_source (source_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
       CREATE TABLE IF NOT EXISTS siteusers (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         username VARCHAR(128) NOT NULL,
@@ -177,13 +196,14 @@ export async function upsertTelemetryToMysql(payload: TelemetryPayload): Promise
       await upsertModelRecords(connection, payload.modelUsageRecords);
       await upsertAgentRecords(connection, payload.agentUsageRecords);
       const pruneResult = await pruneStaleRows(connection, payload);
+      const snapshotResult = await persistRawTelemetrySnapshot(connection, payload);
       await connection.commit();
 
       return status("mysql", "MySQL 持久化", "已同步", "ready", {
         records: payload.modelUsageRecords.length + payload.agentUsageRecords.length,
         message: `写入 ${mysqlConfig().database}.globalaitokenusage / globalagentusage${
           pruneResult.skipped ? `；${pruneResult.reason}` : `；清理旧行 ${pruneResult.deleted}`
-        }`,
+        }；原始快照${snapshotResult.inserted ? "已保存" : "已存在"} ${snapshotResult.records} 条`,
       });
     } catch (error) {
       await connection.rollback();
@@ -238,6 +258,37 @@ export async function readTelemetryFromMysql(days: number) {
   } finally {
     await connection.end();
   }
+}
+
+async function persistRawTelemetrySnapshot(connection: mysql.Connection, payload: TelemetryPayload) {
+  const records = payload.modelUsageRecords.length + payload.agentUsageRecords.length;
+  const snapshot = {
+    sourceMode: payload.sourceMode,
+    modelUsageRecords: payload.modelUsageRecords,
+    agentUsageRecords: payload.agentUsageRecords,
+    sourceReadiness: payload.sourceReadiness,
+  };
+  const contentHash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+  const snapshotPayload = JSON.stringify({
+    generatedAt: payload.generatedAt,
+    ...snapshot,
+  });
+
+  const [result] = await connection.query<mysql.ResultSetHeader>(
+    `INSERT INTO telemetry_raw_snapshots
+      (snapshot_date, source_id, source_kind, source_mode, record_count, content_hash, payload)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       captured_at = CURRENT_TIMESTAMP,
+       updated_at = CURRENT_TIMESTAMP`,
+    [todayISO(), "aggregate-live-payload", "normalized_payload", payload.sourceMode, records, contentHash, snapshotPayload],
+  );
+
+  return {
+    inserted: result.affectedRows === 1,
+    records,
+    contentHash,
+  };
 }
 
 async function upsertModelRecords(connection: mysql.Connection, records: ModelUsageRecord[]) {
