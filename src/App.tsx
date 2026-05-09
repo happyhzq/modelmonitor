@@ -1217,6 +1217,7 @@ function App() {
                 previousDate={previousDate}
                 country={country}
                 providerFilter={modelProvider}
+                canViewDetails={access.canViewDetails}
                 text={text}
               />
             ) : (
@@ -1227,6 +1228,7 @@ function App() {
                 previousDate={previousDate}
                 country={country}
                 frameworkFilter={agentFramework}
+                canViewDetails={access.canViewDetails}
                 text={text}
               />
             )}
@@ -1735,6 +1737,7 @@ function ModelDashboard({
   previousDate,
   country,
   providerFilter,
+  canViewDetails,
   text,
 }: {
   records: ModelUsageRecord[];
@@ -1743,6 +1746,7 @@ function ModelDashboard({
   previousDate: string;
   country: string;
   providerFilter: string;
+  canViewDetails: boolean;
   text: Copy;
 }) {
   const filteredRecords = useMemo(
@@ -1897,46 +1901,48 @@ function ModelDashboard({
         </Panel>
       </section>
 
-      <Panel title={text.modelDetails} icon={Server} action={<span className="panel-note">{text.sortedByTokens}</span>}>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{text.model}</th>
-                <th>{text.provider}</th>
-                <th>{text.tokenTotal}</th>
-                <th>{text.requests}</th>
-                <th>{text.countries}</th>
-                <th>{text.share}</th>
-                <th>{text.dailyChange}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modelRows.map((row) => (
-                <tr key={row.model}>
-                  <td>
-                    <div className="entity-cell">
-                      <span className="swatch" style={{ background: getProviderColor(row.provider) }} />
-                      <div>
-                        <strong>{row.model}</strong>
-                        <span>{row.modelClass}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{row.provider}</td>
-                  <td>{formatTokens(row.tokens)}</td>
-                  <td>{formatCompact(row.requests)}</td>
-                  <td>{row.countries}</td>
-                  <td>{formatPercent(row.share)}</td>
-                  <td>
-                    <TrendChip value={row.trend} />
-                  </td>
+      {canViewDetails && (
+        <Panel title={text.modelDetails} icon={Server} action={<span className="panel-note">{text.sortedByTokens}</span>}>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{text.model}</th>
+                  <th>{text.provider}</th>
+                  <th>{text.tokenTotal}</th>
+                  <th>{text.requests}</th>
+                  <th>{text.countries}</th>
+                  <th>{text.share}</th>
+                  <th>{text.dailyChange}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+              </thead>
+              <tbody>
+                {modelRows.map((row) => (
+                  <tr key={row.model}>
+                    <td>
+                      <div className="entity-cell">
+                        <span className="swatch" style={{ background: getProviderColor(row.provider) }} />
+                        <div>
+                          <strong>{row.model}</strong>
+                          <span>{row.modelClass}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{row.provider}</td>
+                    <td>{formatTokens(row.tokens)}</td>
+                    <td>{formatCompact(row.requests)}</td>
+                    <td>{row.countries}</td>
+                    <td>{formatPercent(row.share)}</td>
+                    <td>
+                      <TrendChip value={row.trend} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
     </>
   );
 }
@@ -1948,6 +1954,7 @@ function AgentDashboard({
   previousDate,
   country,
   frameworkFilter,
+  canViewDetails,
   text,
 }: {
   records: AgentUsageRecord[];
@@ -1956,6 +1963,7 @@ function AgentDashboard({
   previousDate: string;
   country: string;
   frameworkFilter: string;
+  canViewDetails: boolean;
   text: Copy;
 }) {
   const filteredRecords = useMemo(
@@ -2093,44 +2101,46 @@ function AgentDashboard({
         </Panel>
       </section>
 
-      <Panel title={text.agentDetails} icon={Bot} action={<span className="panel-note">{text.sortedByEstimatedCalls}</span>}>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{text.type}</th>
-                <th>{text.mainFramework}</th>
-                <th>{text.estimatedCalls}</th>
-                <th>{text.completedTasks}</th>
-                <th>{text.toolCalls}</th>
-                <th>{text.successRate}</th>
-                <th>Handoff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categoryRows.map((row) => (
-                <tr key={row.category}>
-                  <td>
-                    <div className="entity-cell">
-                      <span className="swatch" style={{ background: categoryColor(row.category) }} />
-                      <div>
-                        <strong>{row.category}</strong>
-                        <span>{formatTokens(row.tokens)}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{row.topFramework}</td>
-                  <td>{formatCompact(row.invocations)}</td>
-                  <td>{formatCompact(row.completedTasks)}</td>
-                  <td>{formatCompact(row.toolCalls)}</td>
-                  <td>{formatPercent(row.successRate)}</td>
-                  <td>{formatPercent(row.handoffRate)}</td>
+      {canViewDetails && (
+        <Panel title={text.agentDetails} icon={Bot} action={<span className="panel-note">{text.sortedByEstimatedCalls}</span>}>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{text.type}</th>
+                  <th>{text.mainFramework}</th>
+                  <th>{text.estimatedCalls}</th>
+                  <th>{text.completedTasks}</th>
+                  <th>{text.toolCalls}</th>
+                  <th>{text.successRate}</th>
+                  <th>Handoff</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+              </thead>
+              <tbody>
+                {categoryRows.map((row) => (
+                  <tr key={row.category}>
+                    <td>
+                      <div className="entity-cell">
+                        <span className="swatch" style={{ background: categoryColor(row.category) }} />
+                        <div>
+                          <strong>{row.category}</strong>
+                          <span>{formatTokens(row.tokens)}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{row.topFramework}</td>
+                    <td>{formatCompact(row.invocations)}</td>
+                    <td>{formatCompact(row.completedTasks)}</td>
+                    <td>{formatCompact(row.toolCalls)}</td>
+                    <td>{formatPercent(row.successRate)}</td>
+                    <td>{formatPercent(row.handoffRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
     </>
   );
 }
