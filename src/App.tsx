@@ -10,11 +10,15 @@ import {
   Filter,
   Gauge,
   Globe2,
+  Languages,
   LineChart,
+  LockKeyhole,
+  LogOut,
   Network,
   Server,
   TrendingDown,
   TrendingUp,
+  UserCog,
   Users,
   Workflow,
 } from "lucide-react";
@@ -51,6 +55,8 @@ import {
 
 type ViewMode = "models" | "agents";
 type TrendTone = "up" | "down" | "flat";
+type Language = "zh" | "en" | "es";
+type UserTier = "free" | "pro" | "enterprise";
 
 type MetricCardProps = {
   icon: LucideIcon;
@@ -83,6 +89,13 @@ type TelemetryPayload = {
   modelUsageRecords: ModelUsageRecord[];
   agentUsageRecords: AgentUsageRecord[];
   sourceReadiness: SourceReadiness[];
+  access?: UserAccess;
+  viewer?: {
+    username: string;
+    role: AuthUser["role"];
+    tier: UserTier;
+    subscriptionStatus: string;
+  };
 };
 
 type CachedTelemetry = {
@@ -91,12 +104,371 @@ type CachedTelemetry = {
   cachedAt: string;
 };
 
-const daysOptions = [7, 14, 30];
+type AuthUser = {
+  id: number;
+  username: string;
+  email?: string;
+  role: "admin" | "viewer";
+  tier: UserTier;
+  subscriptionStatus: string;
+};
+
+type UserAccess = {
+  maxDays: number;
+  canViewModels: boolean;
+  canViewAgents: boolean;
+  canViewCountries: boolean;
+  canViewDetails: boolean;
+  canViewSources: boolean;
+  maxRowsPerDate: number | null;
+};
+
+type AuthPayload = {
+  token?: string;
+  user: AuthUser;
+  access: UserAccess;
+};
+
+const daysOptions = [7, 14, 30, 90];
 const otherProviderKey = "其他供应商";
 const maxTrendProviders = 8;
 const maxProviderShareRows = 10;
 const telemetryCacheKey = "modelmonitor.telemetry.v1";
+const authTokenKey = "modelmonitor.authToken.v1";
+const languageKey = "modelmonitor.language.v1";
 const telemetryCacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
+const translations = {
+  zh: {
+    language: "语言",
+    loginTitle: "登录 Model Monitor",
+    loginSubtitle: "使用账号进入分级数据看板。首个注册用户自动成为企业管理员。",
+    login: "登录",
+    register: "注册",
+    username: "用户名",
+    usernameOrEmail: "用户名或邮箱",
+    email: "邮箱",
+    password: "密码",
+    createAccount: "创建账号",
+    switchToLogin: "已有账号，去登录",
+    switchToRegister: "没有账号，注册",
+    authHelp: "免费用户查看 7 天模型概览；Pro 用户查看 30 天模型与 Agent；Enterprise 用户查看 90 天全量与数据源状态。",
+    logout: "退出",
+    adminUsers: "用户管理",
+    save: "保存",
+    close: "关闭",
+    tier: "会员等级",
+    role: "角色",
+    subscription: "订阅状态",
+    dashboardSubtitle: "接入数据源的模型与 Agent 用量监测",
+    navLabel: "监控视图",
+    models: "模型",
+    agents: "Agent",
+    modelTitle: "AI 模型 token 用量",
+    agentTitle: "Agent token 与估算调用",
+    modelEyebrow: "Model Tokens",
+    agentEyebrow: "Agent Tokens",
+    to: "至",
+    locked: "当前会员等级不可用",
+    upgradeAgents: "Agent 页面需要 Pro 或 Enterprise 权限。",
+    filters: "筛选",
+    days: "天数",
+    recentDays: (days: number) => `最近 ${days} 天`,
+    provider: "供应商",
+    framework: "框架",
+    country: "国家",
+    allProviders: "全部供应商",
+    allFrameworks: "全部框架",
+    allCountries: "全部国家",
+    loadingTitle: "正在读取 MySQL 与接入源数据",
+    loadingBody: "加载完成前不会展示示例遥测，避免刷新时出现数据跳变。",
+    liveData: "接入源数据",
+    sampleData: "示例遥测",
+    loading: "数据加载中",
+    cache: "缓存数据",
+    cacheUpdating: "缓存数据 · 更新中",
+    apiOffline: "API 未连接",
+    sourceScope: "接入源口径",
+    countrySplit: "国家拆分",
+    boundary: "口径边界",
+    countriesAvailable: "可按国家拆分",
+    countriesLocked: "国家拆分需 Pro 或 Enterprise",
+    unknownCountryHidden: "未知国家不进入国家榜",
+    agentEstimated: "Agent 调用含估算",
+    notGlobalTotal: "不等同于全球全量",
+    totalTokens: "总 token",
+    requests: "请求量",
+    activeUsers: "活跃用户",
+    avgLatency: "平均延迟",
+    coverage: "覆盖率",
+    weightedByRequests: "按请求量加权",
+    modelSeries: (count: number) => `${count} 个模型系列`,
+    dailyTokenTrend: "每日 token 趋势",
+    stackedByProvider: "按供应商堆叠",
+    tokenMix: "token 构成",
+    providerShare: "供应商份额",
+    knownCountrySplit: "已知国家拆分",
+    top12: "前 12",
+    totalTokenNote: "总 token",
+    modelDetails: "模型明细",
+    sortedByTokens: "按总 token 排序",
+    model: "模型",
+    tokenTotal: "总 token",
+    countries: "国家数",
+    share: "份额",
+    dailyChange: "日变化",
+    estimatedCalls: "估算调用",
+    publicTokenRatio: "公开 token 按 8k/次折算",
+    toolCalls: "工具调用",
+    successRate: "成功率",
+    agentToken: "Agent token",
+    undisclosedPublicSource: "公开源未披露",
+    undisclosedSuccess: "公开源未披露真实成功率",
+    averageSteps: (steps: string) => `平均 ${steps} 步`,
+    agentContextToken: "Agent/App 上下文 token",
+    dailyAgentTrend: "每日估算调用趋势",
+    stackedByType: "按类型堆叠",
+    frameworkShare: "框架份额",
+    agentCountrySplit: "Agent 已知国家拆分",
+    typeEfficiency: "类型效率",
+    successSteps: "成功率 / 步数",
+    estimatedCallUnit: "估算调用",
+    steps: "步",
+    agentDetails: "Agent 明细",
+    sortedByEstimatedCalls: "按估算调用排序",
+    type: "类型",
+    mainFramework: "主框架",
+    completedTasks: "完成任务",
+    noCountryData: "当前权限或接入源没有可用国家字段，国家榜已隐藏。",
+    apiFrontend: "前端 API",
+    disconnected: "未连接",
+    date: "日期",
+    rows: "条",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
+  en: {
+    language: "Language",
+    loginTitle: "Sign in to Model Monitor",
+    loginSubtitle: "Use an account to enter the tiered telemetry dashboard. The first registered user becomes the enterprise admin.",
+    login: "Sign in",
+    register: "Register",
+    username: "Username",
+    usernameOrEmail: "Username or email",
+    email: "Email",
+    password: "Password",
+    createAccount: "Create account",
+    switchToLogin: "Already have an account",
+    switchToRegister: "Create an account",
+    authHelp: "Free sees 7 days of model overview; Pro sees 30 days of models and agents; Enterprise sees 90 days plus source status.",
+    logout: "Log out",
+    adminUsers: "Users",
+    save: "Save",
+    close: "Close",
+    tier: "Tier",
+    role: "Role",
+    subscription: "Subscription",
+    dashboardSubtitle: "Model and agent usage monitoring from connected data sources",
+    navLabel: "Monitor view",
+    models: "Models",
+    agents: "Agents",
+    modelTitle: "AI model token usage",
+    agentTitle: "Agent tokens and estimated calls",
+    modelEyebrow: "Model Tokens",
+    agentEyebrow: "Agent Tokens",
+    to: "to",
+    locked: "Locked for this tier",
+    upgradeAgents: "Agent view requires Pro or Enterprise.",
+    filters: "Filters",
+    days: "Days",
+    recentDays: (days: number) => `Last ${days} days`,
+    provider: "Provider",
+    framework: "Framework",
+    country: "Country",
+    allProviders: "All providers",
+    allFrameworks: "All frameworks",
+    allCountries: "All countries",
+    loadingTitle: "Reading MySQL and source telemetry",
+    loadingBody: "Sample telemetry is hidden while loading to avoid refresh-time jumps.",
+    liveData: "Connected data",
+    sampleData: "Sample telemetry",
+    loading: "Loading",
+    cache: "Cached data",
+    cacheUpdating: "Cached data · updating",
+    apiOffline: "API offline",
+    sourceScope: "Source scope",
+    countrySplit: "Country split",
+    boundary: "Boundary",
+    countriesAvailable: "Country split available",
+    countriesLocked: "Country split requires Pro or Enterprise",
+    unknownCountryHidden: "Unknown countries are hidden",
+    agentEstimated: "Agent calls include estimates",
+    notGlobalTotal: "Not global all-provider total",
+    totalTokens: "Total tokens",
+    requests: "Requests",
+    activeUsers: "Active users",
+    avgLatency: "Avg latency",
+    coverage: "Coverage",
+    weightedByRequests: "Weighted by requests",
+    modelSeries: (count: number) => `${count} model series`,
+    dailyTokenTrend: "Daily token trend",
+    stackedByProvider: "Stacked by provider",
+    tokenMix: "Token mix",
+    providerShare: "Provider share",
+    knownCountrySplit: "Known country split",
+    top12: "Top 12",
+    totalTokenNote: "Total tokens",
+    modelDetails: "Model details",
+    sortedByTokens: "Sorted by total tokens",
+    model: "Model",
+    tokenTotal: "Total tokens",
+    countries: "Countries",
+    share: "Share",
+    dailyChange: "Daily change",
+    estimatedCalls: "Estimated calls",
+    publicTokenRatio: "Public tokens converted at 8k/call",
+    toolCalls: "Tool calls",
+    successRate: "Success rate",
+    agentToken: "Agent tokens",
+    undisclosedPublicSource: "Not disclosed by public source",
+    undisclosedSuccess: "Public source does not disclose true success rate",
+    averageSteps: (steps: string) => `Average ${steps} steps`,
+    agentContextToken: "Agent/App context tokens",
+    dailyAgentTrend: "Daily estimated call trend",
+    stackedByType: "Stacked by type",
+    frameworkShare: "Framework share",
+    agentCountrySplit: "Agent known country split",
+    typeEfficiency: "Type efficiency",
+    successSteps: "Success / steps",
+    estimatedCallUnit: "estimated calls",
+    steps: "steps",
+    agentDetails: "Agent details",
+    sortedByEstimatedCalls: "Sorted by estimated calls",
+    type: "Type",
+    mainFramework: "Main framework",
+    completedTasks: "Completed tasks",
+    noCountryData: "No country fields are available for this tier or source.",
+    apiFrontend: "Frontend API",
+    disconnected: "Disconnected",
+    date: "Date",
+    rows: "rows",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
+  es: {
+    language: "Idioma",
+    loginTitle: "Iniciar sesion en Model Monitor",
+    loginSubtitle: "Usa una cuenta para entrar al panel con niveles. El primer usuario registrado sera administrador enterprise.",
+    login: "Iniciar sesion",
+    register: "Registrarse",
+    username: "Usuario",
+    usernameOrEmail: "Usuario o email",
+    email: "Email",
+    password: "Contrasena",
+    createAccount: "Crear cuenta",
+    switchToLogin: "Ya tengo cuenta",
+    switchToRegister: "Crear una cuenta",
+    authHelp: "Free ve 7 dias de modelos; Pro ve 30 dias de modelos y agentes; Enterprise ve 90 dias y estados de fuentes.",
+    logout: "Salir",
+    adminUsers: "Usuarios",
+    save: "Guardar",
+    close: "Cerrar",
+    tier: "Nivel",
+    role: "Rol",
+    subscription: "Suscripcion",
+    dashboardSubtitle: "Monitor de uso de modelos y agentes desde fuentes conectadas",
+    navLabel: "Vista de monitoreo",
+    models: "Modelos",
+    agents: "Agentes",
+    modelTitle: "Uso de tokens de modelos AI",
+    agentTitle: "Tokens de agentes y llamadas estimadas",
+    modelEyebrow: "Tokens de modelos",
+    agentEyebrow: "Tokens de agentes",
+    to: "a",
+    locked: "Bloqueado para este nivel",
+    upgradeAgents: "La vista de agentes requiere Pro o Enterprise.",
+    filters: "Filtros",
+    days: "Dias",
+    recentDays: (days: number) => `Ultimos ${days} dias`,
+    provider: "Proveedor",
+    framework: "Framework",
+    country: "Pais",
+    allProviders: "Todos los proveedores",
+    allFrameworks: "Todos los frameworks",
+    allCountries: "Todos los paises",
+    loadingTitle: "Leyendo MySQL y fuentes",
+    loadingBody: "No se muestra telemetria de ejemplo durante la carga para evitar saltos al refrescar.",
+    liveData: "Datos conectados",
+    sampleData: "Telemetria de ejemplo",
+    loading: "Cargando",
+    cache: "Datos en cache",
+    cacheUpdating: "Cache · actualizando",
+    apiOffline: "API desconectada",
+    sourceScope: "Alcance de fuente",
+    countrySplit: "Division por pais",
+    boundary: "Limite",
+    countriesAvailable: "Division por pais disponible",
+    countriesLocked: "La division por pais requiere Pro o Enterprise",
+    unknownCountryHidden: "Paises desconocidos ocultos",
+    agentEstimated: "Llamadas de agentes estimadas",
+    notGlobalTotal: "No es total global completo",
+    totalTokens: "Tokens totales",
+    requests: "Solicitudes",
+    activeUsers: "Usuarios activos",
+    avgLatency: "Latencia media",
+    coverage: "Cobertura",
+    weightedByRequests: "Ponderado por solicitudes",
+    modelSeries: (count: number) => `${count} series de modelos`,
+    dailyTokenTrend: "Tendencia diaria de tokens",
+    stackedByProvider: "Apilado por proveedor",
+    tokenMix: "Mezcla de tokens",
+    providerShare: "Cuota por proveedor",
+    knownCountrySplit: "Paises conocidos",
+    top12: "Top 12",
+    totalTokenNote: "Tokens totales",
+    modelDetails: "Detalle de modelos",
+    sortedByTokens: "Ordenado por tokens",
+    model: "Modelo",
+    tokenTotal: "Tokens totales",
+    countries: "Paises",
+    share: "Cuota",
+    dailyChange: "Cambio diario",
+    estimatedCalls: "Llamadas estimadas",
+    publicTokenRatio: "Tokens publicos convertidos a 8k/llamada",
+    toolCalls: "Llamadas a herramientas",
+    successRate: "Tasa de exito",
+    agentToken: "Tokens de agentes",
+    undisclosedPublicSource: "No divulgado por la fuente publica",
+    undisclosedSuccess: "La fuente publica no divulga exito real",
+    averageSteps: (steps: string) => `Media ${steps} pasos`,
+    agentContextToken: "Tokens de contexto Agent/App",
+    dailyAgentTrend: "Tendencia diaria de llamadas estimadas",
+    stackedByType: "Apilado por tipo",
+    frameworkShare: "Cuota por framework",
+    agentCountrySplit: "Paises conocidos de agentes",
+    typeEfficiency: "Eficiencia por tipo",
+    successSteps: "Exito / pasos",
+    estimatedCallUnit: "llamadas estimadas",
+    steps: "pasos",
+    agentDetails: "Detalle de agentes",
+    sortedByEstimatedCalls: "Ordenado por llamadas estimadas",
+    type: "Tipo",
+    mainFramework: "Framework principal",
+    completedTasks: "Tareas completadas",
+    noCountryData: "No hay campos de pais disponibles para este nivel o fuente.",
+    apiFrontend: "API frontend",
+    disconnected: "Desconectado",
+    date: "Fecha",
+    rows: "filas",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
+};
+
+type Copy = (typeof translations)["zh"];
+
 const fallbackTelemetry: TelemetryPayload = {
   generatedAt: new Date().toISOString(),
   sourceMode: "sample",
@@ -116,23 +488,114 @@ const emptyTelemetry: TelemetryPayload = {
 };
 
 function App() {
-  const [initialCache] = useState<CachedTelemetry | undefined>(() => readTelemetryCache());
+  const [language, setLanguageState] = useState<Language>(() => readLanguage());
+  const text = translations[language];
+  const [authToken, setAuthToken] = useState(() => readAuthToken());
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [access, setAccess] = useState<UserAccess | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [view, setView] = useState<ViewMode>("models");
   const [days, setDays] = useState(14);
   const [country, setCountry] = useState("all");
   const [modelProvider, setModelProvider] = useState("all");
   const [agentFramework, setAgentFramework] = useState("all");
-  const [telemetry, setTelemetry] = useState<TelemetryPayload>(() => initialCache?.payload ?? emptyTelemetry);
-  const [isLoading, setIsLoading] = useState(() => !initialCache);
-  const [isRefreshing, setIsRefreshing] = useState(() => Boolean(initialCache));
-  const [isCacheBacked, setIsCacheBacked] = useState(() => Boolean(initialCache));
+  const [telemetry, setTelemetry] = useState<TelemetryPayload>(emptyTelemetry);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isCacheBacked, setIsCacheBacked] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/telemetry?days=90")
+    if (!authToken) {
+      setAuthChecked(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetch("/api/auth/me", {
+      headers: authHeaders(authToken),
+    })
       .then((response) => {
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return response.json() as Promise<{ user: AuthUser; access: UserAccess }>;
+      })
+      .then((payload) => {
+        if (!cancelled) {
+          setAuthUser(payload.user);
+          setAccess(payload.access);
+          setAuthError(null);
+          setAuthChecked(true);
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled) {
+          clearAuthToken();
+          setAuthToken("");
+          setAuthUser(null);
+          setAccess(null);
+          setAuthError(error.message);
+          setAuthChecked(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!access) {
+      return;
+    }
+
+    if (days > access.maxDays) {
+      setDays(access.maxDays);
+    }
+    if (!access.canViewAgents && view === "agents") {
+      setView("models");
+    }
+    if (!access.canViewCountries && country !== "all") {
+      setCountry("all");
+    }
+  }, [access, country, days, view]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!authToken || !authUser || !access) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const cachedTelemetry = readTelemetryCache(authUser);
+    if (cachedTelemetry) {
+      setTelemetry(cachedTelemetry.payload);
+      setIsLoading(false);
+      setIsRefreshing(true);
+      setIsCacheBacked(true);
+    } else {
+      setTelemetry(emptyTelemetry);
+      setIsLoading(true);
+      setIsRefreshing(false);
+      setIsCacheBacked(false);
+    }
+
+    fetch(`/api/telemetry?days=${access.maxDays}`, {
+      headers: authHeaders(authToken),
+    })
+      .then((response) => {
+        if (response.status === 401) {
+          clearAuthToken();
+          setAuthToken("");
+        }
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`);
         }
@@ -141,10 +604,10 @@ function App() {
       .then((payload) => {
         if (!cancelled) {
           const signature = telemetrySignature(payload);
-          if (!initialCache || initialCache.signature !== signature) {
+          if (!cachedTelemetry || cachedTelemetry.signature !== signature) {
             setTelemetry(payload);
           }
-          writeTelemetryCache(payload, signature);
+          writeTelemetryCache(authUser, payload, signature);
           setApiError(null);
           setIsLoading(false);
           setIsRefreshing(false);
@@ -153,7 +616,7 @@ function App() {
       })
       .catch((error: Error) => {
         if (!cancelled) {
-          if (!initialCache) {
+          if (!cachedTelemetry) {
             setTelemetry(fallbackTelemetry);
           }
           setApiError(error.message);
@@ -165,7 +628,48 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [access, authToken, authUser]);
+
+  const setLanguage = (value: Language) => {
+    setLanguageState(value);
+    window.localStorage.setItem(languageKey, value);
+  };
+
+  const handleAuth = async (mode: "login" | "register", values: Record<string, string>) => {
+    setAuthError(null);
+    const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+    const payload =
+      mode === "login"
+        ? { identifier: values.identifier, password: values.password }
+        : { username: values.username, email: values.email, password: values.password };
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = (await response.json().catch(() => ({}))) as Partial<AuthPayload> & { message?: string };
+
+    if (!response.ok || !body.token || !body.user || !body.access) {
+      throw new Error(body.message || `${response.status} ${response.statusText}`);
+    }
+
+    writeAuthToken(body.token);
+    setAuthToken(body.token);
+    setAuthUser(body.user);
+    setAccess(body.access);
+    setAuthError(null);
+  };
+
+  const handleLogout = async () => {
+    if (authToken) {
+      await fetch("/api/auth/logout", { method: "POST", headers: authHeaders(authToken) }).catch(() => undefined);
+    }
+    clearAuthToken();
+    setAuthToken("");
+    setAuthUser(null);
+    setAccess(null);
+    setTelemetry(emptyTelemetry);
+  };
 
   const modelDates = useMemo(
     () => collectDates(telemetry.modelUsageRecords, []),
@@ -199,6 +703,26 @@ function App() {
     return Array.from(names).filter(Boolean);
   }, [telemetry.agentUsageRecords]);
 
+  if (!authChecked) {
+    return (
+      <main className="app-shell">
+        <LoadingDashboard text={text} />
+      </main>
+    );
+  }
+
+  if (!authUser || !access) {
+    return (
+      <AuthScreen
+        text={text}
+        language={language}
+        authError={authError}
+        onLanguageChange={setLanguage}
+        onSubmit={handleAuth}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -208,56 +732,77 @@ function App() {
           </div>
           <div>
             <h1>AI Model Monitor</h1>
-            <p>接入数据源的模型与 Agent 用量监测</p>
+            <p>{text.dashboardSubtitle}</p>
           </div>
         </div>
 
-        <nav className="view-switch" aria-label="监控视图">
+        <nav className="view-switch" aria-label={text.navLabel}>
           <button
             className={view === "models" ? "active" : ""}
             type="button"
             onClick={() => setView("models")}
-            title="模型 token 监控"
+            title={text.modelTitle}
           >
             <Server size={17} aria-hidden="true" />
-            模型
+            {text.models}
           </button>
           <button
             className={view === "agents" ? "active" : ""}
             type="button"
             onClick={() => setView("agents")}
-            title="Agent token 与调用监控"
+            disabled={!access.canViewAgents}
+            title={access.canViewAgents ? text.agentTitle : text.upgradeAgents}
           >
             <Bot size={17} aria-hidden="true" />
-            Agent
+            {text.agents}
           </button>
         </nav>
 
         <div className="topbar-meta">
+          <label className="language-select">
+            <Languages size={15} aria-hidden="true" />
+            <select value={language} aria-label={text.language} onChange={(event) => setLanguage(event.target.value as Language)}>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </label>
+          <span className="status-badge live">
+            <UserCog size={15} aria-hidden="true" />
+            {authUser.username} · {tierLabel(authUser.tier, text)}
+          </span>
+          {authUser.role === "admin" && (
+            <button className="icon-action" type="button" onClick={() => setShowAdmin(true)} title={text.adminUsers}>
+              <UserCog size={16} aria-hidden="true" />
+            </button>
+          )}
           <span className={`status-badge ${isLoading || isRefreshing || apiError ? "warning" : telemetry.sourceMode}`}>
             <DatabaseZap size={15} aria-hidden="true" />
-            {statusLabel({ isLoading, isRefreshing, isCacheBacked, apiError, sourceMode: telemetry.sourceMode })}
+            {statusLabel({ isLoading, isRefreshing, isCacheBacked, apiError, sourceMode: telemetry.sourceMode }, text)}
           </span>
           <span className="last-update">
             <CalendarDays size={15} aria-hidden="true" />
             {latestDate}
           </span>
+          <button className="icon-action" type="button" onClick={handleLogout} title={text.logout}>
+            <LogOut size={16} aria-hidden="true" />
+          </button>
         </div>
       </header>
 
       <section className="dashboard">
         <div className="dashboard-heading">
           <div>
-            <span className="eyebrow">{view === "models" ? "Model Tokens" : "Agent Tokens"}</span>
-            <h2>{view === "models" ? "AI 模型 token 用量" : "Agent token 与估算调用"}</h2>
+            <span className="eyebrow">{view === "models" ? text.modelEyebrow : text.agentEyebrow}</span>
+            <h2>{view === "models" ? text.modelTitle : text.agentTitle}</h2>
           </div>
           <div className="scope-copy">
             <Globe2 size={17} aria-hidden="true" />
-            {activeDates[0]} 至 {activeDates[activeDates.length - 1]}
+            {activeDates[0]} {text.to} {activeDates[activeDates.length - 1]}
           </div>
         </div>
 
-        <DataScopeBanner telemetry={telemetry} />
+        <DataScopeBanner telemetry={telemetry} access={access} text={text} />
 
         <FilterBar
           view={view}
@@ -268,6 +813,8 @@ function App() {
           providerOptions={providerOptions}
           countryOptions={countryOptions}
           frameworkOptions={frameworkOptions}
+          access={access}
+          text={text}
           onDaysChange={setDays}
           onCountryChange={setCountry}
           onModelProviderChange={setModelProvider}
@@ -275,7 +822,9 @@ function App() {
         />
 
         {isLoading ? (
-          <LoadingDashboard />
+          <LoadingDashboard text={text} />
+        ) : view === "agents" && !access.canViewAgents ? (
+          <LockedPanel text={text} message={text.upgradeAgents} />
         ) : (
           <>
             {view === "models" ? (
@@ -286,6 +835,7 @@ function App() {
                 previousDate={previousDate}
                 country={country}
                 providerFilter={modelProvider}
+                text={text}
               />
             ) : (
               <AgentDashboard
@@ -295,23 +845,254 @@ function App() {
                 previousDate={previousDate}
                 country={country}
                 frameworkFilter={agentFramework}
+                text={text}
               />
             )}
           </>
         )}
 
-        <SourceStrip sourceReadiness={telemetry.sourceReadiness} apiError={apiError} />
+        <SourceStrip sourceReadiness={telemetry.sourceReadiness} apiError={apiError} text={text} />
+      </section>
+      {showAdmin && authUser.role === "admin" && (
+        <AdminUsersPanel text={text} token={authToken} onClose={() => setShowAdmin(false)} />
+      )}
+    </main>
+  );
+}
+
+function AuthScreen({
+  text,
+  language,
+  authError,
+  onLanguageChange,
+  onSubmit,
+}: {
+  text: Copy;
+  language: Language;
+  authError: string | null;
+  onLanguageChange: (language: Language) => void;
+  onSubmit: (mode: "login" | "register", values: Record<string, string>) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [values, setValues] = useState({ identifier: "", username: "", email: "", password: "" });
+  const [error, setError] = useState<string | null>(authError);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setError(authError);
+  }, [authError]);
+
+  const updateValue = (key: keyof typeof values, value: string) => {
+    setValues((current) => ({ ...current, [key]: value }));
+  };
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="auth-topline">
+          <div className="brand-mark">
+            <Activity size={22} aria-hidden="true" />
+          </div>
+          <label className="language-select">
+            <Languages size={15} aria-hidden="true" />
+            <select value={language} aria-label={text.language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <span className="eyebrow">AI Model Monitor</span>
+          <h1>{text.loginTitle}</h1>
+          <p>{text.loginSubtitle}</p>
+        </div>
+
+        <div className="auth-tabs">
+          <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
+            {text.login}
+          </button>
+          <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
+            {text.register}
+          </button>
+        </div>
+
+        <form
+          className="auth-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setIsSubmitting(true);
+            setError(null);
+            try {
+              await onSubmit(mode, values);
+            } catch (submitError) {
+              setError(submitError instanceof Error ? submitError.message : String(submitError));
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+        >
+          {mode === "login" ? (
+            <label>
+              <span>{text.usernameOrEmail}</span>
+              <input
+                value={values.identifier}
+                autoComplete="username"
+                onChange={(event) => updateValue("identifier", event.target.value)}
+                required
+              />
+            </label>
+          ) : (
+            <>
+              <label>
+                <span>{text.username}</span>
+                <input
+                  value={values.username}
+                  autoComplete="username"
+                  onChange={(event) => updateValue("username", event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                <span>{text.email}</span>
+                <input
+                  value={values.email}
+                  type="email"
+                  autoComplete="email"
+                  onChange={(event) => updateValue("email", event.target.value)}
+                />
+              </label>
+            </>
+          )}
+          <label>
+            <span>{text.password}</span>
+            <input
+              value={values.password}
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              minLength={8}
+              onChange={(event) => updateValue("password", event.target.value)}
+              required
+            />
+          </label>
+          {error && <div className="auth-error">{error}</div>}
+          <button className="primary-action" type="submit" disabled={isSubmitting}>
+            <LockKeyhole size={16} aria-hidden="true" />
+            {mode === "login" ? text.login : text.createAccount}
+          </button>
+        </form>
+
+        <p className="auth-help">{text.authHelp}</p>
+        <button className="text-action" type="button" onClick={() => setMode(mode === "login" ? "register" : "login")}>
+          {mode === "login" ? text.switchToRegister : text.switchToLogin}
+        </button>
       </section>
     </main>
   );
 }
 
-function LoadingDashboard() {
+function LockedPanel({ text, message }: { text: Copy; message: string }) {
   return (
-    <section className="loading-state" aria-label="数据加载中">
+    <section className="locked-panel">
+      <LockKeyhole size={22} aria-hidden="true" />
+      <strong>{text.locked}</strong>
+      <span>{message}</span>
+    </section>
+  );
+}
+
+function AdminUsersPanel({ text, token, onClose }: { text: Copy; token: string; onClose: () => void }) {
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/users", { headers: authHeaders(token) })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return response.json() as Promise<{ users: AuthUser[] }>;
+      })
+      .then((payload) => setUsers(payload.users))
+      .catch((loadError: Error) => setError(loadError.message));
+  }, [token]);
+
+  const updateUser = async (user: AuthUser, patch: Partial<AuthUser>) => {
+    const response = await fetch(`/api/admin/users/${user.id}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "content-type": "application/json" },
+      body: JSON.stringify({
+        tier: patch.tier ?? user.tier,
+        role: patch.role ?? user.role,
+        subscriptionStatus: patch.subscriptionStatus ?? user.subscriptionStatus,
+      }),
+    });
+    const body = (await response.json().catch(() => ({}))) as { user?: AuthUser; message?: string };
+    if (!response.ok || !body.user) {
+      throw new Error(body.message || `${response.status} ${response.statusText}`);
+    }
+    setUsers((current) => current.map((item) => (item.id === body.user?.id ? body.user : item)));
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <section className="admin-panel">
+        <div className="panel-header">
+          <h3>
+            <UserCog size={17} aria-hidden="true" />
+            {text.adminUsers}
+          </h3>
+          <button className="text-action" type="button" onClick={onClose}>
+            {text.close}
+          </button>
+        </div>
+        {error && <div className="auth-error">{error}</div>}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{text.username}</th>
+                <th>{text.email}</th>
+                <th>{text.tier}</th>
+                <th>{text.role}</th>
+                <th>{text.subscription}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.username}</td>
+                  <td>{user.email ?? "-"}</td>
+                  <td>
+                    <select value={user.tier} onChange={(event) => updateUser(user, { tier: event.target.value as UserTier })}>
+                      <option value="free">{text.planFree}</option>
+                      <option value="pro">{text.planPro}</option>
+                      <option value="enterprise">{text.planEnterprise}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select value={user.role} onChange={(event) => updateUser(user, { role: event.target.value as AuthUser["role"] })}>
+                      <option value="viewer">viewer</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td>{user.subscriptionStatus}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LoadingDashboard({ text }: { text: Copy }) {
+  return (
+    <section className="loading-state" aria-label={text.loading}>
       <DatabaseZap size={22} aria-hidden="true" />
-      <strong>正在读取 MySQL 与接入源数据</strong>
-      <span>加载完成前不会展示示例遥测，避免刷新时出现数据跳变。</span>
+      <strong>{text.loadingTitle}</strong>
+      <span>{text.loadingBody}</span>
     </section>
   );
 }
@@ -328,17 +1109,17 @@ function statusLabel({
   isCacheBacked: boolean;
   apiError: string | null;
   sourceMode: TelemetryPayload["sourceMode"];
-}) {
+}, text: Copy) {
   if (isLoading) {
-    return "数据加载中";
+    return text.loading;
   }
   if (isCacheBacked || isRefreshing) {
-    return apiError ? "缓存数据" : "缓存数据 · 更新中";
+    return apiError ? text.cache : text.cacheUpdating;
   }
   if (apiError) {
-    return "API 未连接";
+    return text.apiOffline;
   }
-  return sourceMode === "live" ? "接入源数据" : "示例遥测";
+  return sourceMode === "live" ? text.liveData : text.sampleData;
 }
 
 function FilterBar({
@@ -350,6 +1131,8 @@ function FilterBar({
   providerOptions,
   countryOptions,
   frameworkOptions,
+  access,
+  text,
   onDaysChange,
   onCountryChange,
   onModelProviderChange,
@@ -363,26 +1146,28 @@ function FilterBar({
   providerOptions: string[];
   countryOptions: string[];
   frameworkOptions: string[];
+  access: UserAccess;
+  text: Copy;
   onDaysChange: (value: number) => void;
   onCountryChange: (value: string) => void;
   onModelProviderChange: (value: string) => void;
   onAgentFrameworkChange: (value: string) => void;
 }) {
   return (
-    <section className="filterbar" aria-label="筛选条件">
+    <section className="filterbar" aria-label={text.filters}>
       <div className="filter-title">
         <Filter size={16} aria-hidden="true" />
-        筛选
+        {text.filters}
       </div>
       <label className="control">
         <span>
           <CalendarDays size={14} aria-hidden="true" />
-          天数
+          {text.days}
         </span>
         <select value={days} onChange={(event) => onDaysChange(Number(event.target.value))}>
-          {daysOptions.map((option) => (
+          {daysOptions.filter((option) => option <= access.maxDays).map((option) => (
             <option key={option} value={option}>
-              最近 {option} 天
+              {text.recentDays(option)}
             </option>
           ))}
         </select>
@@ -390,11 +1175,11 @@ function FilterBar({
       <label className="control">
         <span>
           {view === "models" ? <Server size={14} aria-hidden="true" /> : <Workflow size={14} aria-hidden="true" />}
-          {view === "models" ? "供应商" : "框架"}
+          {view === "models" ? text.provider : text.framework}
         </span>
         {view === "models" ? (
           <select value={modelProvider} onChange={(event) => onModelProviderChange(event.target.value)}>
-            <option value="all">全部供应商</option>
+            <option value="all">{text.allProviders}</option>
             {providerOptions.map((provider) => (
               <option key={provider} value={provider}>
                 {provider}
@@ -403,7 +1188,7 @@ function FilterBar({
           </select>
         ) : (
           <select value={agentFramework} onChange={(event) => onAgentFrameworkChange(event.target.value)}>
-            <option value="all">全部框架</option>
+            <option value="all">{text.allFrameworks}</option>
             {frameworkOptions.map((framework) => (
               <option key={framework} value={framework}>
                 {framework}
@@ -415,10 +1200,10 @@ function FilterBar({
       <label className="control">
         <span>
           <Globe2 size={14} aria-hidden="true" />
-          国家
+          {text.country}
         </span>
-        <select value={country} onChange={(event) => onCountryChange(event.target.value)}>
-          <option value="all">全部国家</option>
+        <select value={country} disabled={!access.canViewCountries} onChange={(event) => onCountryChange(event.target.value)}>
+          <option value="all">{access.canViewCountries ? text.allCountries : text.countriesLocked}</option>
           {countryOptions.map((item) => (
             <option key={item} value={item}>
               {item}
@@ -430,7 +1215,7 @@ function FilterBar({
   );
 }
 
-function DataScopeBanner({ telemetry }: { telemetry: TelemetryPayload }) {
+function DataScopeBanner({ telemetry, access, text }: { telemetry: TelemetryPayload; access: UserAccess; text: Copy }) {
   const ignored = new Set(["dedupe", "mysql", "mysql-read", "sample"]);
   const readySources = telemetry.sourceReadiness
     .filter((item) => item.status === "ready" && !ignored.has(item.id ?? "") && (item.records ?? 0) > 0)
@@ -439,24 +1224,30 @@ function DataScopeBanner({ telemetry }: { telemetry: TelemetryPayload }) {
     (record) => !isKnownCountry(record),
   ).length;
   const estimatedAgentRows = telemetry.agentUsageRecords.filter((record) => record.isEstimate).length;
-  const sourceText = readySources.length ? readySources.slice(0, 3).join("、") : "MySQL / 已配置源";
+  const sourceText = readySources.length ? readySources.slice(0, 3).join(" / ") : "MySQL / configured sources";
 
   return (
-    <section className="scope-banner" aria-label="数据口径">
+    <section className="scope-banner" aria-label={text.sourceScope}>
       <div>
         <DatabaseZap size={16} aria-hidden="true" />
-        <span>接入源口径</span>
-        <strong>{telemetry.sourceMode === "sample" ? "示例数据" : sourceText}</strong>
+        <span>{text.sourceScope}</span>
+        <strong>{telemetry.sourceMode === "sample" ? text.sampleData : sourceText}</strong>
       </div>
       <div>
         <Globe2 size={16} aria-hidden="true" />
-        <span>国家拆分</span>
-        <strong>{unknownCountryRows ? "未知国家不进入国家榜" : "可按国家拆分"}</strong>
+        <span>{text.countrySplit}</span>
+        <strong>
+          {!access.canViewCountries
+            ? text.countriesLocked
+            : unknownCountryRows
+              ? text.unknownCountryHidden
+              : text.countriesAvailable}
+        </strong>
       </div>
       <div>
         <CircleAlert size={16} aria-hidden="true" />
-        <span>口径边界</span>
-        <strong>{estimatedAgentRows ? "Agent 调用含估算" : "不等同于全球全量"}</strong>
+        <span>{text.boundary}</span>
+        <strong>{estimatedAgentRows ? text.agentEstimated : text.notGlobalTotal}</strong>
       </div>
     </section>
   );
@@ -469,6 +1260,7 @@ function ModelDashboard({
   previousDate,
   country,
   providerFilter,
+  text,
 }: {
   records: ModelUsageRecord[];
   activeDates: string[];
@@ -476,6 +1268,7 @@ function ModelDashboard({
   previousDate: string;
   country: string;
   providerFilter: string;
+  text: Copy;
 }) {
   const filteredRecords = useMemo(
     () =>
@@ -523,7 +1316,7 @@ function ModelDashboard({
       <section className="metric-grid">
         <MetricCard
           icon={DatabaseZap}
-          label="总 token"
+          label={text.totalTokens}
           value={formatTokens(totalTokens)}
           detail={`${latestRecordDate} ${formatTokens(latestTokens)}`}
           tone="blue"
@@ -531,32 +1324,32 @@ function ModelDashboard({
         />
         <MetricCard
           icon={Network}
-          label="请求量"
+          label={text.requests}
           value={formatCompact(totalRequests)}
-          detail={`${modelCount} 个模型系列`}
+          detail={text.modelSeries(modelCount)}
           tone="green"
         />
         <MetricCard
           icon={Users}
-          label="活跃用户"
+          label={text.activeUsers}
           value={formatCompact(totalActiveUsers)}
-          detail={`覆盖率 ${formatPercent(avgCoverage / 100)}`}
+          detail={`${text.coverage} ${formatPercent(avgCoverage / 100)}`}
           tone="orange"
         />
         <MetricCard
           icon={Gauge}
-          label="平均延迟"
+          label={text.avgLatency}
           value={`${Math.round(avgLatency)} ms`}
-          detail="按请求量加权"
+          detail={text.weightedByRequests}
           tone="purple"
         />
       </section>
 
       <section className="content-grid primary-grid">
         <Panel
-          title="每日 token 趋势"
+          title={text.dailyTokenTrend}
           icon={LineChart}
-          action={<span className="panel-note">按供应商堆叠</span>}
+          action={<span className="panel-note">{text.stackedByProvider}</span>}
         >
           <div className="chart-frame tall">
             <ResponsiveContainer width="100%" height="100%">
@@ -566,7 +1359,7 @@ function ModelDashboard({
                 <YAxis tickFormatter={(value) => formatAxisTokens(Number(value))} tickLine={false} axisLine={false} />
                 <Tooltip
                   formatter={(value, name) => [formatTokens(Number(value)), name]}
-                  labelFormatter={(label) => `日期 ${label}`}
+                  labelFormatter={(label) => `${text.date} ${label}`}
                   contentStyle={tooltipStyle}
                 />
                 <Legend />
@@ -587,7 +1380,7 @@ function ModelDashboard({
           </div>
         </Panel>
 
-        <Panel title="Prompt / Completion" icon={Cpu} action={<span className="panel-note">token 构成</span>}>
+        <Panel title="Prompt / Completion" icon={Cpu} action={<span className="panel-note">{text.tokenMix}</span>}>
           <div className="chart-frame compact">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -621,26 +1414,26 @@ function ModelDashboard({
       </section>
 
       <section className="content-grid secondary-grid">
-        <Panel title="供应商份额" icon={BarChart3} action={<span className="panel-note">总 token</span>}>
+        <Panel title={text.providerShare} icon={BarChart3} action={<span className="panel-note">{text.totalTokenNote}</span>}>
           <HorizontalBarChart rows={providerRows} valueFormatter={formatTokens} />
         </Panel>
-        <Panel title="已知国家拆分" icon={Globe2} action={<span className="panel-note">前 12</span>}>
-          <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatTokens} />
+        <Panel title={text.knownCountrySplit} icon={Globe2} action={<span className="panel-note">{text.top12}</span>}>
+          <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatTokens} text={text} />
         </Panel>
       </section>
 
-      <Panel title="模型明细" icon={Server} action={<span className="panel-note">按总 token 排序</span>}>
+      <Panel title={text.modelDetails} icon={Server} action={<span className="panel-note">{text.sortedByTokens}</span>}>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>模型</th>
-                <th>供应商</th>
-                <th>总 token</th>
-                <th>请求量</th>
-                <th>国家数</th>
-                <th>份额</th>
-                <th>日变化</th>
+                <th>{text.model}</th>
+                <th>{text.provider}</th>
+                <th>{text.tokenTotal}</th>
+                <th>{text.requests}</th>
+                <th>{text.countries}</th>
+                <th>{text.share}</th>
+                <th>{text.dailyChange}</th>
               </tr>
             </thead>
             <tbody>
@@ -680,6 +1473,7 @@ function AgentDashboard({
   previousDate,
   country,
   frameworkFilter,
+  text,
 }: {
   records: AgentUsageRecord[];
   activeDates: string[];
@@ -687,6 +1481,7 @@ function AgentDashboard({
   previousDate: string;
   country: string;
   frameworkFilter: string;
+  text: Copy;
 }) {
   const filteredRecords = useMemo(
     () =>
@@ -736,37 +1531,37 @@ function AgentDashboard({
       <section className="metric-grid">
         <MetricCard
           icon={Bot}
-          label="估算调用"
+          label={text.estimatedCalls}
           value={formatCompact(totalInvocations)}
-          detail={hasEstimatedRecords ? "公开 token 按 8k/次折算" : `${latestRecordDate} ${formatCompact(latestInvocations)}`}
+          detail={hasEstimatedRecords ? text.publicTokenRatio : `${latestRecordDate} ${formatCompact(latestInvocations)}`}
           tone="blue"
           delta={dailyDelta}
         />
         <MetricCard
           icon={Workflow}
-          label="工具调用"
+          label={text.toolCalls}
           value={formatCompact(totalToolCalls)}
-          detail={totalToolCalls ? `${formatRatio(totalToolCalls, totalInvocations)} 次 / 调用` : "公开源未披露"}
+          detail={totalToolCalls ? `${formatRatio(totalToolCalls, totalInvocations)} / call` : text.undisclosedPublicSource}
           tone="green"
         />
         <MetricCard
           icon={CheckCircle2}
-          label="成功率"
+          label={text.successRate}
           value={formatPercent(avgSuccess / 100)}
-          detail={hasEstimatedRecords ? "公开源未披露真实成功率" : `平均 ${avgSteps.toFixed(1)} 步`}
+          detail={hasEstimatedRecords ? text.undisclosedSuccess : text.averageSteps(avgSteps.toFixed(1))}
           tone="orange"
         />
         <MetricCard
           icon={DatabaseZap}
-          label="Agent token"
+          label={text.agentToken}
           value={formatTokens(totalTokens)}
-          detail="Agent/App 上下文 token"
+          detail={text.agentContextToken}
           tone="purple"
         />
       </section>
 
       <section className="content-grid primary-grid">
-        <Panel title="每日估算调用趋势" icon={LineChart} action={<span className="panel-note">按类型堆叠</span>}>
+        <Panel title={text.dailyAgentTrend} icon={LineChart} action={<span className="panel-note">{text.stackedByType}</span>}>
           <div className="chart-frame tall">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeSeries} margin={{ top: 10, right: 22, left: 0, bottom: 0 }}>
@@ -775,7 +1570,7 @@ function AgentDashboard({
                 <YAxis tickFormatter={(value) => formatAxisCompact(Number(value))} tickLine={false} axisLine={false} />
                 <Tooltip
                   formatter={(value, name) => [formatCompact(Number(value)), name]}
-                  labelFormatter={(label) => `日期 ${label}`}
+                  labelFormatter={(label) => `${text.date} ${label}`}
                   contentStyle={tooltipStyle}
                 />
                 <Legend />
@@ -796,26 +1591,26 @@ function AgentDashboard({
           </div>
         </Panel>
 
-        <Panel title="框架份额" icon={Workflow} action={<span className="panel-note">估算调用</span>}>
+        <Panel title={text.frameworkShare} icon={Workflow} action={<span className="panel-note">{text.estimatedCalls}</span>}>
           <HorizontalBarChart rows={frameworkRows} valueFormatter={formatCompact} />
         </Panel>
       </section>
 
       <section className="content-grid secondary-grid">
-        <Panel title="Agent 已知国家拆分" icon={Globe2} action={<span className="panel-note">前 12</span>}>
-          <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatCompact} />
+        <Panel title={text.agentCountrySplit} icon={Globe2} action={<span className="panel-note">{text.top12}</span>}>
+          <CountryGrid rows={countryRows.slice(0, 12)} valueFormatter={formatCompact} text={text} />
         </Panel>
-        <Panel title="类型效率" icon={Gauge} action={<span className="panel-note">成功率 / 步数</span>}>
+        <Panel title={text.typeEfficiency} icon={Gauge} action={<span className="panel-note">{text.successSteps}</span>}>
           <div className="agent-matrix">
             {categoryRows.slice(0, 7).map((row) => (
               <div key={row.category} className="agent-matrix-row">
                 <div>
                   <strong>{row.category}</strong>
-                  <span>{formatCompact(row.invocations)} 估算调用</span>
+                  <span>{formatCompact(row.invocations)} {text.estimatedCallUnit}</span>
                 </div>
                 <div className="matrix-values">
                   <span>{formatPercent(row.successRate)}</span>
-                  <span>{row.avgSteps.toFixed(1)} 步</span>
+                  <span>{row.avgSteps.toFixed(1)} {text.steps}</span>
                 </div>
               </div>
             ))}
@@ -823,17 +1618,17 @@ function AgentDashboard({
         </Panel>
       </section>
 
-      <Panel title="Agent 明细" icon={Bot} action={<span className="panel-note">按估算调用排序</span>}>
+      <Panel title={text.agentDetails} icon={Bot} action={<span className="panel-note">{text.sortedByEstimatedCalls}</span>}>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>类型</th>
-                <th>主框架</th>
-                <th>估算调用</th>
-                <th>完成任务</th>
-                <th>工具调用</th>
-                <th>成功率</th>
+                <th>{text.type}</th>
+                <th>{text.mainFramework}</th>
+                <th>{text.estimatedCalls}</th>
+                <th>{text.completedTasks}</th>
+                <th>{text.toolCalls}</th>
+                <th>{text.successRate}</th>
                 <th>Handoff</th>
               </tr>
             </thead>
@@ -935,14 +1730,16 @@ function HorizontalBarChart({
 function CountryGrid({
   rows,
   valueFormatter,
+  text,
 }: {
   rows: AggregateRow[];
   valueFormatter: (value: number) => string;
+  text: Copy;
 }) {
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
 
   if (!rows.length) {
-    return <EmptyState message="当前接入源没有可用国家字段，国家榜已隐藏未知国家。" />;
+    return <EmptyState message={text.noCountryData} />;
   }
 
   return (
@@ -988,23 +1785,25 @@ function TrendChip({ value, compact = false }: { value: number; compact?: boolea
 function SourceStrip({
   sourceReadiness,
   apiError,
+  text,
 }: {
   sourceReadiness: SourceReadiness[];
   apiError: string | null;
+  text: Copy;
 }) {
   return (
-    <section className="source-strip" aria-label="数据源状态">
+    <section className="source-strip" aria-label={text.sourceScope}>
       {apiError && (
         <div className="source-item error">
-          <span>前端 API</span>
-          <strong>未连接</strong>
+          <span>{text.apiFrontend}</span>
+          <strong>{text.disconnected}</strong>
           <em>{apiError}</em>
         </div>
       )}
       {sourceReadiness.map((item) => (
         <div key={item.id ?? item.label} className={`source-item ${item.status}`}>
           <span>{item.label}</span>
-          <strong>{item.records ? `${item.value} · ${formatCompact(item.records)} 条` : item.value}</strong>
+          <strong>{item.records ? `${item.value} · ${formatCompact(item.records)} ${text.rows}` : item.value}</strong>
           {item.message && <em>{item.message}</em>}
         </div>
       ))}
@@ -1178,13 +1977,52 @@ function isKnownCountry(record: Pick<ModelUsageRecord | AgentUsageRecord, "count
   return record.country !== "未知" && record.countryCode !== "ZZ";
 }
 
-function readTelemetryCache(): CachedTelemetry | undefined {
+function readAuthToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return window.localStorage.getItem(authTokenKey) ?? "";
+}
+
+function writeAuthToken(token: string) {
+  window.localStorage.setItem(authTokenKey, token);
+}
+
+function clearAuthToken() {
+  window.localStorage.removeItem(authTokenKey);
+}
+
+function authHeaders(token: string) {
+  return {
+    authorization: `Bearer ${token}`,
+  };
+}
+
+function readLanguage(): Language {
+  if (typeof window === "undefined") {
+    return "zh";
+  }
+  const value = window.localStorage.getItem(languageKey);
+  return value === "en" || value === "es" || value === "zh" ? value : "zh";
+}
+
+function telemetryCacheKeyFor(user: AuthUser) {
+  return `${telemetryCacheKey}.${user.username}.${user.tier}`;
+}
+
+function tierLabel(tier: UserTier, text: Copy) {
+  if (tier === "enterprise") return text.planEnterprise;
+  if (tier === "pro") return text.planPro;
+  return text.planFree;
+}
+
+function readTelemetryCache(user: AuthUser): CachedTelemetry | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
 
   try {
-    const rawValue = window.localStorage.getItem(telemetryCacheKey);
+    const rawValue = window.localStorage.getItem(telemetryCacheKeyFor(user));
     if (!rawValue) {
       return undefined;
     }
@@ -1196,7 +2034,7 @@ function readTelemetryCache(): CachedTelemetry | undefined {
 
     const cachedAt = Date.parse(cached.cachedAt);
     if (!Number.isFinite(cachedAt) || Date.now() - cachedAt > telemetryCacheMaxAgeMs) {
-      window.localStorage.removeItem(telemetryCacheKey);
+      window.localStorage.removeItem(telemetryCacheKeyFor(user));
       return undefined;
     }
 
@@ -1210,7 +2048,7 @@ function readTelemetryCache(): CachedTelemetry | undefined {
   }
 }
 
-function writeTelemetryCache(payload: TelemetryPayload, signature = telemetrySignature(payload)) {
+function writeTelemetryCache(user: AuthUser, payload: TelemetryPayload, signature = telemetrySignature(payload)) {
   if (typeof window === "undefined" || payload.sourceMode !== "live" || !hasTelemetryRows(payload)) {
     return;
   }
@@ -1221,7 +2059,7 @@ function writeTelemetryCache(payload: TelemetryPayload, signature = telemetrySig
       signature,
       cachedAt: new Date().toISOString(),
     };
-    window.localStorage.setItem(telemetryCacheKey, JSON.stringify(cached));
+    window.localStorage.setItem(telemetryCacheKeyFor(user), JSON.stringify(cached));
   } catch {
     // Storage can be unavailable or full; live API data still renders normally.
   }

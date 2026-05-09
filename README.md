@@ -34,6 +34,27 @@ npm run dev:api
 npm run dev
 ```
 
+## 登录、多语言和会员等级
+
+前端支持中文、English、Español 三种界面语言，语言偏好保存在浏览器本地。
+
+认证使用 MySQL：
+
+- `siteusers`：用户、角色、会员等级和订阅状态。
+- `usersessions`：登录 session token 的 SHA-256 hash 和过期时间。
+
+首个注册用户会自动成为 `admin + enterprise`，后续注册用户默认为 `viewer + free`。管理员可在页面右上角用户管理里调整其他用户等级。
+
+等级权限：
+
+```text
+free       最近 7 天模型概览；不含 Agent、国家拆分、数据源细节。
+pro        最近 30 天模型和 Agent；含国家拆分，不含完整数据源状态。
+enterprise 最近 90 天完整模型和 Agent；含国家拆分、明细和数据源状态。
+```
+
+`/api/telemetry` 对外需要登录 token；本机 `127.0.0.1` 请求会按 system enterprise 处理，用于服务器 cron 定时采集。后端始终采集 90 天用于 MySQL 落库和原始快照，再按用户等级裁剪返回给前端，避免低等级用户请求影响历史数据完整性。
+
 ## 已接入的数据源
 
 直接 API：
@@ -76,13 +97,15 @@ MYSQL_PASSWORD=
 MYSQL_DATABASE=modelmonitor
 MODEL_MONITOR_MYSQL_ENABLED=true
 MODEL_MONITOR_MYSQL_READ=true
+MODEL_MONITOR_RAW_SNAPSHOT_MINUTES=300
 ```
 
 数据库表：
 
 - `globalaitokenusage`：清洗去重后的日级模型 token 用量。
 - `globalagentusage`：清洗去重后的日级 Agent/App token 与调用量。
-- `siteusers`：预留给网站用户、角色和扩展 metadata。
+- `telemetry_raw_snapshots`：按时间保留聚合后的原始 payload 快照，用于以后重放清洗逻辑。
+- `siteusers` / `usersessions`：网站用户、角色、会员等级和登录 session。
 
 MySQL 持久化行为：
 

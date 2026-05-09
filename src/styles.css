@@ -24,7 +24,8 @@ body {
 }
 
 button,
-select {
+select,
+input {
   font: inherit;
 }
 
@@ -132,14 +133,22 @@ button {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
+.view-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .topbar-meta {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .status-badge,
-.last-update {
+.last-update,
+.language-select,
+.icon-action {
   gap: 7px;
   min-height: 34px;
   padding: 0 10px;
@@ -151,10 +160,208 @@ button {
   white-space: nowrap;
 }
 
+.language-select {
+  display: inline-flex;
+}
+
+.language-select select {
+  max-width: 118px;
+  color: inherit;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+}
+
 .status-badge {
   color: #0f766e;
   border-color: rgba(15, 118, 110, 0.25);
   background: rgba(240, 253, 250, 0.88);
+}
+
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(232, 237, 245, 0.72) 0, rgba(244, 246, 249, 0) 260px),
+    #f4f6f9;
+}
+
+.auth-card {
+  display: grid;
+  gap: 18px;
+  width: min(520px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
+.auth-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.auth-card h1 {
+  margin: 6px 0 0;
+  color: #0f172a;
+  font-size: 29px;
+  line-height: 1.1;
+}
+
+.auth-card p {
+  margin: 10px 0 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.auth-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font-weight: 800;
+}
+
+.auth-tabs button.active {
+  color: #0f172a;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-form label span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-form input,
+.admin-panel select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  color: #111827;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.primary-action,
+.text-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: 7px;
+  font-weight: 800;
+}
+
+.primary-action {
+  color: #ffffff;
+  border: 0;
+  background: #1d4ed8;
+}
+
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.text-action {
+  color: #1d4ed8;
+  border: 0;
+  background: transparent;
+}
+
+.auth-error {
+  padding: 10px 11px;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fef2f2;
+  font-size: 13px;
+}
+
+.auth-help {
+  padding: 11px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  font-size: 13px;
+}
+
+.locked-panel {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 24px;
+  color: #475569;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.locked-panel strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.admin-panel {
+  width: min(920px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 18px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.22);
 }
 
 .status-badge.sample,

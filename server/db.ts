@@ -117,15 +117,32 @@ export async function ensureMysqlSchema() {
         email VARCHAR(255) NULL,
         password_hash VARCHAR(255) NULL,
         role VARCHAR(64) NOT NULL DEFAULT 'viewer',
+        tier VARCHAR(64) NOT NULL DEFAULT 'free',
+        subscription_status VARCHAR(64) NOT NULL DEFAULT 'active',
         metadata JSON NULL,
+        last_login_at TIMESTAMP NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY uniq_siteusers_username (username),
         UNIQUE KEY uniq_siteusers_email (email)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+      CREATE TABLE IF NOT EXISTS usersessions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_usersessions_token_hash (token_hash),
+        KEY idx_usersessions_user_id (user_id),
+        KEY idx_usersessions_expires_at (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
     await ensureTelemetryMetadataColumns(connection, config.database);
+    await ensureUserColumns(connection, config.database);
   } finally {
     await connection.end();
   }
@@ -140,6 +157,12 @@ async function ensureTelemetryMetadataColumns(connection: mysql.Connection, data
   await ensureColumn(connection, database, "globalagentusage", "source_kind", "source_kind VARCHAR(64) NOT NULL DEFAULT 'unknown'");
   await ensureColumn(connection, database, "globalagentusage", "is_estimate", "is_estimate TINYINT(1) NOT NULL DEFAULT 0");
   await ensureColumn(connection, database, "globalagentusage", "metric_note", "metric_note VARCHAR(255) NULL");
+}
+
+async function ensureUserColumns(connection: mysql.Connection, database: string) {
+  await ensureColumn(connection, database, "siteusers", "tier", "tier VARCHAR(64) NOT NULL DEFAULT 'free'");
+  await ensureColumn(connection, database, "siteusers", "subscription_status", "subscription_status VARCHAR(64) NOT NULL DEFAULT 'active'");
+  await ensureColumn(connection, database, "siteusers", "last_login_at", "last_login_at TIMESTAMP NULL");
 }
 
 async function ensureColumn(connection: mysql.Connection, database: string, table: string, column: string, definition: string) {
@@ -574,7 +597,7 @@ function rowToAgentRecord(row: mysql.RowDataPacket): AgentUsageRecord {
   };
 }
 
-async function createDbConnection() {
+export async function createDbConnection() {
   const config = mysqlConfig();
   return mysql.createConnection({
     host: config.host,
