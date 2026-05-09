@@ -7,6 +7,7 @@ import {
   accessForUser,
   AuthError,
   getUserByToken,
+  guestUser,
   isLocalRequest,
   listUsers,
   loginUser,
@@ -191,7 +192,7 @@ async function requireTelemetryUser(request: import("node:http").IncomingMessage
     return user;
   }
 
-  return isLocalRequest(request) ? systemUser() : undefined;
+  return isLocalRequest(request) ? systemUser() : guestUser();
 }
 
 async function requireAdmin(request: import("node:http").IncomingMessage) {

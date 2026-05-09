@@ -21,6 +21,7 @@ import {
   UserCog,
   Users,
   Workflow,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -55,7 +56,7 @@ import {
 
 type ViewMode = "models" | "agents";
 type TrendTone = "up" | "down" | "flat";
-type Language = "zh" | "en" | "es";
+type Language = "zh" | "en" | "es" | "ja" | "ko" | "yue";
 type UserTier = "free" | "pro" | "enterprise";
 
 type MetricCardProps = {
@@ -137,6 +138,14 @@ const telemetryCacheKey = "modelmonitor.telemetry.v1";
 const authTokenKey = "modelmonitor.authToken.v1";
 const languageKey = "modelmonitor.language.v1";
 const telemetryCacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
+const languageOptions: Array<{ value: Language; label: string }> = [
+  { value: "zh", label: "中文" },
+  { value: "en", label: "English" },
+  { value: "es", label: "Español" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+  { value: "yue", label: "粵語" },
+];
 const translations = {
   zh: {
     language: "语言",
@@ -153,6 +162,8 @@ const translations = {
     switchToRegister: "没有账号，注册",
     authHelp: "免费用户查看 7 天模型概览；Pro 用户查看 30 天模型与 Agent；Enterprise 用户查看 90 天全量与数据源状态。",
     logout: "退出",
+    signIn: "登录 / 注册",
+    guestUser: "游客",
     adminUsers: "用户管理",
     save: "保存",
     close: "关闭",
@@ -262,6 +273,8 @@ const translations = {
     switchToRegister: "Create an account",
     authHelp: "Free sees 7 days of model overview; Pro sees 30 days of models and agents; Enterprise sees 90 days plus source status.",
     logout: "Log out",
+    signIn: "Sign in / register",
+    guestUser: "Guest",
     adminUsers: "Users",
     save: "Save",
     close: "Close",
@@ -371,6 +384,8 @@ const translations = {
     switchToRegister: "Crear una cuenta",
     authHelp: "Free ve 7 dias de modelos; Pro ve 30 dias de modelos y agentes; Enterprise ve 90 dias y estados de fuentes.",
     logout: "Salir",
+    signIn: "Iniciar sesion / registrarse",
+    guestUser: "Invitado",
     adminUsers: "Usuarios",
     save: "Guardar",
     close: "Cerrar",
@@ -465,6 +480,339 @@ const translations = {
     planPro: "Pro",
     planEnterprise: "Enterprise",
   },
+  ja: {
+    language: "言語",
+    loginTitle: "Model Monitor にログイン",
+    loginSubtitle: "アカウントで階層別データダッシュボードに入ります。最初の登録ユーザーは自動的に Enterprise 管理者になります。",
+    login: "ログイン",
+    register: "登録",
+    username: "ユーザー名",
+    usernameOrEmail: "ユーザー名またはメール",
+    email: "メール",
+    password: "パスワード",
+    createAccount: "アカウント作成",
+    switchToLogin: "アカウントをお持ちの方",
+    switchToRegister: "アカウントを作成",
+    authHelp: "Free は直近 7 日のモデル概要、Pro は 30 日のモデルと Agent、Enterprise は 90 日の全量とデータソース状態を表示します。",
+    logout: "ログアウト",
+    signIn: "ログイン / 登録",
+    guestUser: "ゲスト",
+    adminUsers: "ユーザー管理",
+    save: "保存",
+    close: "閉じる",
+    tier: "プラン",
+    role: "権限",
+    subscription: "購読状態",
+    dashboardSubtitle: "接続データソースによるモデルと Agent の利用監視",
+    navLabel: "監視ビュー",
+    models: "モデル",
+    agents: "Agent",
+    modelTitle: "AI モデル token 使用量",
+    agentTitle: "Agent token と推定呼び出し",
+    modelEyebrow: "Model Tokens",
+    agentEyebrow: "Agent Tokens",
+    to: "から",
+    locked: "現在のプランでは利用できません",
+    upgradeAgents: "Agent ビューには Pro または Enterprise 権限が必要です。",
+    filters: "フィルター",
+    days: "日数",
+    recentDays: (days: number) => `直近 ${days} 日`,
+    provider: "プロバイダー",
+    framework: "フレームワーク",
+    country: "国",
+    allProviders: "すべてのプロバイダー",
+    allFrameworks: "すべてのフレームワーク",
+    allCountries: "すべての国",
+    loadingTitle: "MySQL と接続ソースを読み込み中",
+    loadingBody: "読み込み中はサンプルテレメトリを表示せず、更新時の表示揺れを防ぎます。",
+    liveData: "接続データ",
+    sampleData: "サンプルテレメトリ",
+    loading: "読み込み中",
+    cache: "キャッシュデータ",
+    cacheUpdating: "キャッシュデータ · 更新中",
+    apiOffline: "API 未接続",
+    sourceScope: "ソース範囲",
+    countrySplit: "国別内訳",
+    boundary: "集計範囲",
+    countriesAvailable: "国別内訳を利用可能",
+    countriesLocked: "国別内訳には Pro または Enterprise が必要",
+    unknownCountryHidden: "不明な国は国ランキングから除外",
+    agentEstimated: "Agent 呼び出しには推定値を含む",
+    notGlobalTotal: "世界全体の完全な総量ではありません",
+    totalTokens: "総 token",
+    requests: "リクエスト",
+    activeUsers: "アクティブユーザー",
+    avgLatency: "平均レイテンシ",
+    coverage: "カバレッジ",
+    weightedByRequests: "リクエスト数で加重",
+    modelSeries: (count: number) => `${count} モデル系列`,
+    dailyTokenTrend: "日次 token トレンド",
+    stackedByProvider: "プロバイダー別積み上げ",
+    tokenMix: "token 構成",
+    providerShare: "プロバイダーシェア",
+    knownCountrySplit: "判明している国別内訳",
+    top12: "上位 12",
+    totalTokenNote: "総 token",
+    modelDetails: "モデル詳細",
+    sortedByTokens: "総 token 順",
+    model: "モデル",
+    tokenTotal: "総 token",
+    countries: "国数",
+    share: "シェア",
+    dailyChange: "日次変化",
+    estimatedCalls: "推定呼び出し",
+    publicTokenRatio: "公開 token を 8k/回で換算",
+    toolCalls: "ツール呼び出し",
+    successRate: "成功率",
+    agentToken: "Agent token",
+    undisclosedPublicSource: "公開ソースでは非開示",
+    undisclosedSuccess: "公開ソースは実際の成功率を開示していません",
+    averageSteps: (steps: string) => `平均 ${steps} ステップ`,
+    agentContextToken: "Agent/App コンテキスト token",
+    dailyAgentTrend: "日次推定呼び出しトレンド",
+    stackedByType: "タイプ別積み上げ",
+    frameworkShare: "フレームワークシェア",
+    agentCountrySplit: "Agent の判明国別内訳",
+    typeEfficiency: "タイプ別効率",
+    successSteps: "成功率 / ステップ",
+    estimatedCallUnit: "推定呼び出し",
+    steps: "ステップ",
+    agentDetails: "Agent 詳細",
+    sortedByEstimatedCalls: "推定呼び出し順",
+    type: "タイプ",
+    mainFramework: "主要フレームワーク",
+    completedTasks: "完了タスク",
+    noCountryData: "現在の権限またはソースには利用可能な国フィールドがありません。",
+    apiFrontend: "フロントエンド API",
+    disconnected: "未接続",
+    date: "日付",
+    rows: "件",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
+  ko: {
+    language: "언어",
+    loginTitle: "Model Monitor 로그인",
+    loginSubtitle: "계정으로 등급별 데이터 대시보드에 들어갑니다. 첫 등록 사용자는 자동으로 Enterprise 관리자가 됩니다.",
+    login: "로그인",
+    register: "가입",
+    username: "사용자 이름",
+    usernameOrEmail: "사용자 이름 또는 이메일",
+    email: "이메일",
+    password: "비밀번호",
+    createAccount: "계정 만들기",
+    switchToLogin: "이미 계정이 있음",
+    switchToRegister: "계정 만들기",
+    authHelp: "Free는 최근 7일 모델 개요, Pro는 30일 모델과 Agent, Enterprise는 90일 전체 데이터와 소스 상태를 볼 수 있습니다.",
+    logout: "로그아웃",
+    signIn: "로그인 / 가입",
+    guestUser: "게스트",
+    adminUsers: "사용자 관리",
+    save: "저장",
+    close: "닫기",
+    tier: "등급",
+    role: "역할",
+    subscription: "구독 상태",
+    dashboardSubtitle: "연결된 데이터 소스 기반 모델 및 Agent 사용량 모니터링",
+    navLabel: "모니터링 보기",
+    models: "모델",
+    agents: "Agent",
+    modelTitle: "AI 모델 token 사용량",
+    agentTitle: "Agent token 및 추정 호출",
+    modelEyebrow: "Model Tokens",
+    agentEyebrow: "Agent Tokens",
+    to: "부터",
+    locked: "현재 등급에서 사용할 수 없음",
+    upgradeAgents: "Agent 보기는 Pro 또는 Enterprise 권한이 필요합니다.",
+    filters: "필터",
+    days: "일수",
+    recentDays: (days: number) => `최근 ${days}일`,
+    provider: "공급사",
+    framework: "프레임워크",
+    country: "국가",
+    allProviders: "전체 공급사",
+    allFrameworks: "전체 프레임워크",
+    allCountries: "전체 국가",
+    loadingTitle: "MySQL 및 연결 소스 데이터 읽는 중",
+    loadingBody: "새로고침 시 데이터가 튀는 것을 막기 위해 로딩 중에는 샘플 텔레메트리를 표시하지 않습니다.",
+    liveData: "연결 데이터",
+    sampleData: "샘플 텔레메트리",
+    loading: "로딩 중",
+    cache: "캐시 데이터",
+    cacheUpdating: "캐시 데이터 · 업데이트 중",
+    apiOffline: "API 연결 안 됨",
+    sourceScope: "소스 범위",
+    countrySplit: "국가별 분해",
+    boundary: "집계 경계",
+    countriesAvailable: "국가별 분해 가능",
+    countriesLocked: "국가별 분해는 Pro 또는 Enterprise 필요",
+    unknownCountryHidden: "알 수 없는 국가는 국가 순위에서 제외",
+    agentEstimated: "Agent 호출에는 추정치 포함",
+    notGlobalTotal: "전 세계 전체 총량과 같지 않음",
+    totalTokens: "총 token",
+    requests: "요청 수",
+    activeUsers: "활성 사용자",
+    avgLatency: "평균 지연",
+    coverage: "커버리지",
+    weightedByRequests: "요청 수 기준 가중",
+    modelSeries: (count: number) => `${count}개 모델 시리즈`,
+    dailyTokenTrend: "일별 token 추세",
+    stackedByProvider: "공급사별 누적",
+    tokenMix: "token 구성",
+    providerShare: "공급사 점유율",
+    knownCountrySplit: "확인된 국가별 분해",
+    top12: "상위 12",
+    totalTokenNote: "총 token",
+    modelDetails: "모델 상세",
+    sortedByTokens: "총 token 순",
+    model: "모델",
+    tokenTotal: "총 token",
+    countries: "국가 수",
+    share: "점유율",
+    dailyChange: "일별 변화",
+    estimatedCalls: "추정 호출",
+    publicTokenRatio: "공개 token을 8k/회로 환산",
+    toolCalls: "도구 호출",
+    successRate: "성공률",
+    agentToken: "Agent token",
+    undisclosedPublicSource: "공개 소스에서 미공개",
+    undisclosedSuccess: "공개 소스는 실제 성공률을 공개하지 않음",
+    averageSteps: (steps: string) => `평균 ${steps} 단계`,
+    agentContextToken: "Agent/App 컨텍스트 token",
+    dailyAgentTrend: "일별 추정 호출 추세",
+    stackedByType: "유형별 누적",
+    frameworkShare: "프레임워크 점유율",
+    agentCountrySplit: "Agent 확인 국가별 분해",
+    typeEfficiency: "유형별 효율",
+    successSteps: "성공률 / 단계",
+    estimatedCallUnit: "추정 호출",
+    steps: "단계",
+    agentDetails: "Agent 상세",
+    sortedByEstimatedCalls: "추정 호출 순",
+    type: "유형",
+    mainFramework: "주요 프레임워크",
+    completedTasks: "완료 작업",
+    noCountryData: "현재 권한 또는 소스에 사용 가능한 국가 필드가 없습니다.",
+    apiFrontend: "프런트엔드 API",
+    disconnected: "연결 끊김",
+    date: "날짜",
+    rows: "건",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
+  yue: {
+    language: "語言",
+    loginTitle: "登入 Model Monitor",
+    loginSubtitle: "用帳號進入分級數據看板。第一個註冊用戶會自動成為 Enterprise 管理員。",
+    login: "登入",
+    register: "註冊",
+    username: "用戶名",
+    usernameOrEmail: "用戶名或電郵",
+    email: "電郵",
+    password: "密碼",
+    createAccount: "開帳號",
+    switchToLogin: "已有帳號，去登入",
+    switchToRegister: "未有帳號，去註冊",
+    authHelp: "Free 可睇最近 7 日模型概覽；Pro 可睇 30 日模型同 Agent；Enterprise 可睇 90 日全量同數據源狀態。",
+    logout: "登出",
+    signIn: "登入 / 註冊",
+    guestUser: "訪客",
+    adminUsers: "用戶管理",
+    save: "儲存",
+    close: "關閉",
+    tier: "會員級別",
+    role: "角色",
+    subscription: "訂閱狀態",
+    dashboardSubtitle: "接入數據源嘅模型同 Agent 用量監測",
+    navLabel: "監控視圖",
+    models: "模型",
+    agents: "Agent",
+    modelTitle: "AI 模型 token 用量",
+    agentTitle: "Agent token 同估算調用",
+    modelEyebrow: "Model Tokens",
+    agentEyebrow: "Agent Tokens",
+    to: "至",
+    locked: "目前會員級別未開放",
+    upgradeAgents: "Agent 頁面需要 Pro 或 Enterprise 權限。",
+    filters: "篩選",
+    days: "天數",
+    recentDays: (days: number) => `最近 ${days} 日`,
+    provider: "供應商",
+    framework: "框架",
+    country: "國家",
+    allProviders: "全部供應商",
+    allFrameworks: "全部框架",
+    allCountries: "全部國家",
+    loadingTitle: "讀緊 MySQL 同接入源數據",
+    loadingBody: "載入完成前唔顯示示例遙測，避免刷新時數據跳動。",
+    liveData: "接入源數據",
+    sampleData: "示例遙測",
+    loading: "載入中",
+    cache: "快取數據",
+    cacheUpdating: "快取數據 · 更新中",
+    apiOffline: "API 未連接",
+    sourceScope: "接入源口徑",
+    countrySplit: "國家拆分",
+    boundary: "口徑邊界",
+    countriesAvailable: "可按國家拆分",
+    countriesLocked: "國家拆分需要 Pro 或 Enterprise",
+    unknownCountryHidden: "未知國家唔入國家榜",
+    agentEstimated: "Agent 調用包含估算",
+    notGlobalTotal: "唔等於全球全量",
+    totalTokens: "總 token",
+    requests: "請求量",
+    activeUsers: "活躍用戶",
+    avgLatency: "平均延遲",
+    coverage: "覆蓋率",
+    weightedByRequests: "按請求量加權",
+    modelSeries: (count: number) => `${count} 個模型系列`,
+    dailyTokenTrend: "每日 token 趨勢",
+    stackedByProvider: "按供應商堆疊",
+    tokenMix: "token 構成",
+    providerShare: "供應商份額",
+    knownCountrySplit: "已知國家拆分",
+    top12: "前 12",
+    totalTokenNote: "總 token",
+    modelDetails: "模型明細",
+    sortedByTokens: "按總 token 排序",
+    model: "模型",
+    tokenTotal: "總 token",
+    countries: "國家數",
+    share: "份額",
+    dailyChange: "日變化",
+    estimatedCalls: "估算調用",
+    publicTokenRatio: "公開 token 按 8k/次折算",
+    toolCalls: "工具調用",
+    successRate: "成功率",
+    agentToken: "Agent token",
+    undisclosedPublicSource: "公開源未披露",
+    undisclosedSuccess: "公開源未披露真實成功率",
+    averageSteps: (steps: string) => `平均 ${steps} 步`,
+    agentContextToken: "Agent/App 上下文 token",
+    dailyAgentTrend: "每日估算調用趨勢",
+    stackedByType: "按類型堆疊",
+    frameworkShare: "框架份額",
+    agentCountrySplit: "Agent 已知國家拆分",
+    typeEfficiency: "類型效率",
+    successSteps: "成功率 / 步數",
+    estimatedCallUnit: "估算調用",
+    steps: "步",
+    agentDetails: "Agent 明細",
+    sortedByEstimatedCalls: "按估算調用排序",
+    type: "類型",
+    mainFramework: "主框架",
+    completedTasks: "完成任務",
+    noCountryData: "目前權限或接入源冇可用國家欄位，國家榜已隱藏。",
+    apiFrontend: "前端 API",
+    disconnected: "未連接",
+    date: "日期",
+    rows: "條",
+    planFree: "Free",
+    planPro: "Pro",
+    planEnterprise: "Enterprise",
+  },
 };
 
 type Copy = (typeof translations)["zh"];
@@ -486,6 +834,22 @@ const emptyTelemetry: TelemetryPayload = {
   agentUsageRecords: [],
   sourceReadiness: [],
 };
+const guestAccess: UserAccess = {
+  maxDays: 7,
+  canViewModels: true,
+  canViewAgents: false,
+  canViewCountries: false,
+  canViewDetails: false,
+  canViewSources: false,
+  maxRowsPerDate: 20,
+};
+const guestUser: AuthUser = {
+  id: 0,
+  username: "guest",
+  role: "viewer",
+  tier: "free",
+  subscriptionStatus: "guest",
+};
 
 function App() {
   const [language, setLanguageState] = useState<Language>(() => readLanguage());
@@ -496,6 +860,7 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [view, setView] = useState<ViewMode>("models");
   const [days, setDays] = useState(14);
   const [country, setCountry] = useState("all");
@@ -511,6 +876,9 @@ function App() {
     let cancelled = false;
 
     if (!authToken) {
+      setAuthUser(guestUser);
+      setAccess(guestAccess);
+      setAuthError(null);
       setAuthChecked(true);
       return () => {
         cancelled = true;
@@ -538,8 +906,8 @@ function App() {
         if (!cancelled) {
           clearAuthToken();
           setAuthToken("");
-          setAuthUser(null);
-          setAccess(null);
+          setAuthUser(guestUser);
+          setAccess(guestAccess);
           setAuthError(error.message);
           setAuthChecked(true);
         }
@@ -569,7 +937,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!authToken || !authUser || !access) {
+    if (!authUser || !access) {
       return () => {
         cancelled = true;
       };
@@ -588,13 +956,13 @@ function App() {
       setIsCacheBacked(false);
     }
 
-    fetch(`/api/telemetry?days=${access.maxDays}`, {
-      headers: authHeaders(authToken),
-    })
+    fetch(`/api/telemetry?days=${access.maxDays}`, authToken ? { headers: authHeaders(authToken) } : undefined)
       .then((response) => {
         if (response.status === 401) {
           clearAuthToken();
           setAuthToken("");
+          setAuthUser(guestUser);
+          setAccess(guestAccess);
         }
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`);
@@ -658,6 +1026,7 @@ function App() {
     setAuthUser(body.user);
     setAccess(body.access);
     setAuthError(null);
+    setShowAuth(false);
   };
 
   const handleLogout = async () => {
@@ -666,42 +1035,46 @@ function App() {
     }
     clearAuthToken();
     setAuthToken("");
-    setAuthUser(null);
-    setAccess(null);
+    setAuthUser(guestUser);
+    setAccess(guestAccess);
     setTelemetry(emptyTelemetry);
   };
+  const visibleTelemetry = useMemo(
+    () => (authUser && access ? restrictTelemetryForAccess(telemetry, authUser, access, text) : telemetry),
+    [access, authUser, telemetry, text],
+  );
 
   const modelDates = useMemo(
-    () => collectDates(telemetry.modelUsageRecords, []),
-    [telemetry.modelUsageRecords],
+    () => collectDates(visibleTelemetry.modelUsageRecords, []),
+    [visibleTelemetry.modelUsageRecords],
   );
   const agentDates = useMemo(
-    () => collectDates([], telemetry.agentUsageRecords),
-    [telemetry.agentUsageRecords],
+    () => collectDates([], visibleTelemetry.agentUsageRecords),
+    [visibleTelemetry.agentUsageRecords],
   );
   const viewDates = view === "models" ? modelDates : agentDates;
   const activeDates = useMemo(() => buildContinuousDateWindow(viewDates, days), [viewDates, days]);
   const latestDate = viewDates.at(-1) ?? fallbackDateRange.at(-1) ?? "";
   const previousDate = viewDates.at(-2) ?? latestDate;
   const providerOptions = useMemo(() => {
-    const names = new Set([...providers.map((provider) => provider.name), ...telemetry.modelUsageRecords.map((record) => record.provider)]);
+    const names = new Set([...providers.map((provider) => provider.name), ...visibleTelemetry.modelUsageRecords.map((record) => record.provider)]);
     return Array.from(names).filter(Boolean);
-  }, [telemetry.modelUsageRecords]);
+  }, [visibleTelemetry.modelUsageRecords]);
   const countryOptions = useMemo(() => {
     const names = new Set([
       ...countries.map((item) => item.name),
-      ...telemetry.modelUsageRecords.map((record) => record.country),
-      ...telemetry.agentUsageRecords.map((record) => record.country),
+      ...visibleTelemetry.modelUsageRecords.map((record) => record.country),
+      ...visibleTelemetry.agentUsageRecords.map((record) => record.country),
     ]);
     return Array.from(names).filter((item) => item && item !== "未知");
-  }, [telemetry.modelUsageRecords, telemetry.agentUsageRecords]);
+  }, [visibleTelemetry.modelUsageRecords, visibleTelemetry.agentUsageRecords]);
   const frameworkOptions = useMemo(() => {
     const names = new Set([
       ...agentFrameworks.map((framework) => framework.framework),
-      ...telemetry.agentUsageRecords.map((record) => record.framework),
+      ...visibleTelemetry.agentUsageRecords.map((record) => record.framework),
     ]);
     return Array.from(names).filter(Boolean);
-  }, [telemetry.agentUsageRecords]);
+  }, [visibleTelemetry.agentUsageRecords]);
 
   if (!authChecked) {
     return (
@@ -762,31 +1135,40 @@ function App() {
           <label className="language-select">
             <Languages size={15} aria-hidden="true" />
             <select value={language} aria-label={text.language} onChange={(event) => setLanguage(event.target.value as Language)}>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
+              {languageOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <span className="status-badge live">
             <UserCog size={15} aria-hidden="true" />
-            {authUser.username} · {tierLabel(authUser.tier, text)}
+            {userDisplayName(authUser, text)} · {tierLabel(authUser.tier, text)}
           </span>
-          {authUser.role === "admin" && (
+          {authToken && authUser.role === "admin" && (
             <button className="icon-action" type="button" onClick={() => setShowAdmin(true)} title={text.adminUsers}>
               <UserCog size={16} aria-hidden="true" />
             </button>
           )}
-          <span className={`status-badge ${isLoading || isRefreshing || apiError ? "warning" : telemetry.sourceMode}`}>
+          <span className={`status-badge ${isLoading || isRefreshing || apiError ? "warning" : visibleTelemetry.sourceMode}`}>
             <DatabaseZap size={15} aria-hidden="true" />
-            {statusLabel({ isLoading, isRefreshing, isCacheBacked, apiError, sourceMode: telemetry.sourceMode }, text)}
+            {statusLabel({ isLoading, isRefreshing, isCacheBacked, apiError, sourceMode: visibleTelemetry.sourceMode }, text)}
           </span>
           <span className="last-update">
             <CalendarDays size={15} aria-hidden="true" />
             {latestDate}
           </span>
-          <button className="icon-action" type="button" onClick={handleLogout} title={text.logout}>
-            <LogOut size={16} aria-hidden="true" />
-          </button>
+          {authToken ? (
+            <button className="icon-action" type="button" onClick={handleLogout} title={text.logout}>
+              <LogOut size={16} aria-hidden="true" />
+            </button>
+          ) : (
+            <button className="topbar-action" type="button" onClick={() => setShowAuth(true)}>
+              <LockKeyhole size={15} aria-hidden="true" />
+              {text.signIn}
+            </button>
+          )}
         </div>
       </header>
 
@@ -802,7 +1184,7 @@ function App() {
           </div>
         </div>
 
-        <DataScopeBanner telemetry={telemetry} access={access} text={text} />
+        <DataScopeBanner telemetry={visibleTelemetry} access={access} text={text} />
 
         <FilterBar
           view={view}
@@ -829,7 +1211,7 @@ function App() {
           <>
             {view === "models" ? (
               <ModelDashboard
-                records={telemetry.modelUsageRecords}
+                records={visibleTelemetry.modelUsageRecords}
                 activeDates={activeDates}
                 latestDate={latestDate}
                 previousDate={previousDate}
@@ -839,7 +1221,7 @@ function App() {
               />
             ) : (
               <AgentDashboard
-                records={telemetry.agentUsageRecords}
+                records={visibleTelemetry.agentUsageRecords}
                 activeDates={activeDates}
                 latestDate={latestDate}
                 previousDate={previousDate}
@@ -851,10 +1233,23 @@ function App() {
           </>
         )}
 
-        <SourceStrip sourceReadiness={telemetry.sourceReadiness} apiError={apiError} text={text} />
+        <SourceStrip sourceReadiness={visibleTelemetry.sourceReadiness} apiError={apiError} text={text} />
       </section>
       {showAdmin && authUser.role === "admin" && (
         <AdminUsersPanel text={text} token={authToken} onClose={() => setShowAdmin(false)} />
+      )}
+      {showAuth && (
+        <div className="modal-backdrop">
+          <AuthScreen
+            text={text}
+            language={language}
+            authError={authError}
+            embedded
+            onClose={() => setShowAuth(false)}
+            onLanguageChange={setLanguage}
+            onSubmit={handleAuth}
+          />
+        </div>
       )}
     </main>
   );
@@ -864,12 +1259,16 @@ function AuthScreen({
   text,
   language,
   authError,
+  embedded = false,
+  onClose,
   onLanguageChange,
   onSubmit,
 }: {
   text: Copy;
   language: Language;
   authError: string | null;
+  embedded?: boolean;
+  onClose?: () => void;
   onLanguageChange: (language: Language) => void;
   onSubmit: (mode: "login" | "register", values: Record<string, string>) => Promise<void>;
 }) {
@@ -886,9 +1285,8 @@ function AuthScreen({
     setValues((current) => ({ ...current, [key]: value }));
   };
 
-  return (
-    <main className="auth-shell">
-      <section className="auth-card">
+  const card = (
+    <section className={`auth-card ${embedded ? "embedded" : ""}`}>
         <div className="auth-topline">
           <div className="brand-mark">
             <Activity size={22} aria-hidden="true" />
@@ -896,11 +1294,18 @@ function AuthScreen({
           <label className="language-select">
             <Languages size={15} aria-hidden="true" />
             <select value={language} aria-label={text.language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
+              {languageOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
+          {onClose && (
+            <button className="icon-action" type="button" onClick={onClose} title={text.close}>
+              <X size={16} aria-hidden="true" />
+            </button>
+          )}
         </div>
         <div>
           <span className="eyebrow">AI Model Monitor</span>
@@ -987,8 +1392,9 @@ function AuthScreen({
           {mode === "login" ? text.switchToRegister : text.switchToLogin}
         </button>
       </section>
-    </main>
   );
+
+  return embedded ? card : <main className="auth-shell">{card}</main>;
 }
 
 function LockedPanel({ text, message }: { text: Copy; message: string }) {
@@ -1217,6 +1623,7 @@ function FilterBar({
 
 function DataScopeBanner({ telemetry, access, text }: { telemetry: TelemetryPayload; access: UserAccess; text: Copy }) {
   const ignored = new Set(["dedupe", "mysql", "mysql-read", "sample"]);
+  const accessSource = telemetry.sourceReadiness.find((item) => item.id === "access");
   const readySources = telemetry.sourceReadiness
     .filter((item) => item.status === "ready" && !ignored.has(item.id ?? "") && (item.records ?? 0) > 0)
     .map((item) => item.label);
@@ -1224,7 +1631,11 @@ function DataScopeBanner({ telemetry, access, text }: { telemetry: TelemetryPayl
     (record) => !isKnownCountry(record),
   ).length;
   const estimatedAgentRows = telemetry.agentUsageRecords.filter((record) => record.isEstimate).length;
-  const sourceText = readySources.length ? readySources.slice(0, 3).join(" / ") : "MySQL / configured sources";
+  const sourceText = accessSource
+    ? `${accessSource.label}: ${accessSource.value}`
+    : readySources.length
+      ? readySources.slice(0, 3).join(" / ")
+      : "MySQL / configured sources";
 
   return (
     <section className="scope-banner" aria-label={text.sourceScope}>
@@ -1250,6 +1661,70 @@ function DataScopeBanner({ telemetry, access, text }: { telemetry: TelemetryPayl
         <strong>{estimatedAgentRows ? text.agentEstimated : text.notGlobalTotal}</strong>
       </div>
     </section>
+  );
+}
+
+function restrictTelemetryForAccess(
+  payload: TelemetryPayload,
+  user: AuthUser,
+  access: UserAccess,
+  text: Copy,
+): TelemetryPayload {
+  const modelUsageRecords = limitClientRowsByDate(
+    access.canViewCountries ? payload.modelUsageRecords : payload.modelUsageRecords.map(lockCountryScope),
+    access.maxRowsPerDate,
+    "tokens",
+  );
+  const agentUsageRecords = access.canViewAgents
+    ? limitClientRowsByDate(
+        access.canViewCountries ? payload.agentUsageRecords : payload.agentUsageRecords.map(lockCountryScope),
+        access.maxRowsPerDate,
+        "tokens",
+      )
+    : [];
+
+  return {
+    ...payload,
+    modelUsageRecords,
+    agentUsageRecords,
+    sourceReadiness: access.canViewSources
+      ? payload.sourceReadiness
+      : [
+          {
+            id: "access",
+            label: text.tier,
+            value: tierLabel(user.tier, text),
+            status: "ready",
+            message: access.canViewAgents ? text.liveData : text.upgradeAgents,
+          },
+        ],
+  };
+}
+
+function lockCountryScope<T extends { country: string; countryCode: string; region: string }>(record: T): T {
+  return {
+    ...record,
+    country: "Locked",
+    countryCode: "ZZ",
+    region: "Locked",
+  };
+}
+
+function limitClientRowsByDate<T extends Record<string, unknown>>(records: T[], maxRows: number | null, metric: keyof T) {
+  if (!maxRows) {
+    return records;
+  }
+
+  const grouped = new Map<string, T[]>();
+  records.forEach((record) => {
+    const date = String(record.date ?? "");
+    grouped.set(date, [...(grouped.get(date) ?? []), record]);
+  });
+
+  return Array.from(grouped.values()).flatMap((rows) =>
+    rows
+      .sort((left, right) => Number(right[metric] ?? 0) - Number(left[metric] ?? 0))
+      .slice(0, maxRows),
   );
 }
 
@@ -2003,7 +2478,7 @@ function readLanguage(): Language {
     return "zh";
   }
   const value = window.localStorage.getItem(languageKey);
-  return value === "en" || value === "es" || value === "zh" ? value : "zh";
+  return languageOptions.some((option) => option.value === value) ? (value as Language) : "zh";
 }
 
 function telemetryCacheKeyFor(user: AuthUser) {
@@ -2014,6 +2489,10 @@ function tierLabel(tier: UserTier, text: Copy) {
   if (tier === "enterprise") return text.planEnterprise;
   if (tier === "pro") return text.planPro;
   return text.planFree;
+}
+
+function userDisplayName(user: AuthUser, text: Copy) {
+  return user.subscriptionStatus === "guest" ? text.guestUser : user.username;
 }
 
 function readTelemetryCache(user: AuthUser): CachedTelemetry | undefined {

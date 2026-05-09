@@ -269,6 +269,16 @@ export function systemUser(): AuthUser {
   };
 }
 
+export function guestUser(): AuthUser {
+  return {
+    id: 0,
+    username: "guest",
+    role: "viewer",
+    tier: "free",
+    subscriptionStatus: "guest",
+  };
+}
+
 export class AuthError extends Error {
   constructor(
     public statusCode: number,

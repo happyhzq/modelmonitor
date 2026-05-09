@@ -148,7 +148,8 @@ button {
 .status-badge,
 .last-update,
 .language-select,
-.icon-action {
+.icon-action,
+.topbar-action {
   gap: 7px;
   min-height: 34px;
   padding: 0 10px;
@@ -165,7 +166,7 @@ button {
 }
 
 .language-select select {
-  max-width: 118px;
+  max-width: 150px;
   color: inherit;
   border: 0;
   outline: none;
@@ -178,6 +179,16 @@ button {
   justify-content: center;
   width: 36px;
   padding: 0;
+}
+
+.topbar-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-weight: 800;
 }
 
 .status-badge {
@@ -205,6 +216,12 @@ button {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
+.auth-card.embedded {
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.22);
 }
 
 .auth-topline {
