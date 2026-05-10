@@ -50,8 +50,9 @@ const server = createServer(async (request, response) => {
 
       const access = accessForUser(user);
       const responseDays = Math.min(clamp(Number(url.searchParams.get("days") || 30), 1, 90), access.maxDays);
-      const payload = await buildTelemetry(90);
-      sendJson(response, applyAccess(payload, user, access, responseDays));
+      const recordDays = url.searchParams.get("compare") === "1" ? Math.min(responseDays * 2, 180) : responseDays;
+      const payload = await buildTelemetry(Math.max(90, recordDays));
+      sendJson(response, applyAccess(payload, user, access, responseDays, recordDays));
       return;
     }
 
@@ -200,9 +201,15 @@ async function requireAdmin(request: import("node:http").IncomingMessage) {
   return user?.role === "admin" ? user : undefined;
 }
 
-function applyAccess(payload: Awaited<ReturnType<typeof buildTelemetry>>, user: AuthUser, access: UserAccess, days: number) {
-  const modelRecordsForWindow = filterRecordsByDays(payload.modelUsageRecords, days);
-  const agentRecordsForWindow = filterRecordsByDays(payload.agentUsageRecords, days);
+function applyAccess(
+  payload: Awaited<ReturnType<typeof buildTelemetry>>,
+  user: AuthUser,
+  access: UserAccess,
+  days: number,
+  recordDays = days,
+) {
+  const modelRecordsForWindow = filterRecordsByDays(payload.modelUsageRecords, recordDays);
+  const agentRecordsForWindow = filterRecordsByDays(payload.agentUsageRecords, recordDays);
   const modelUsageRecords = limitRowsByDate(
     access.canViewCountries ? modelRecordsForWindow : modelRecordsForWindow.map(removeCountryScope),
     access.maxRowsPerDate,
@@ -228,7 +235,9 @@ function applyAccess(payload: Awaited<ReturnType<typeof buildTelemetry>>, user: 
             label: "Access tier",
             value: user.tier,
             status: "ready" as const,
-            message: `Max ${access.maxDays} days${access.canViewAgents ? "" : "; agent view locked"}`,
+            message: `Max ${access.maxDays} day view${recordDays > days ? "; previous period included for comparisons" : ""}${
+              access.canViewAgents ? "" : "; agent view locked"
+            }`,
           },
         ],
     viewer: {

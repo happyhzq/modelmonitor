@@ -65,7 +65,10 @@ type MetricCardProps = {
   value: string;
   detail: string;
   tone: "blue" | "green" | "orange" | "purple";
-  delta?: number;
+  windowDelta?: number;
+  detailDelta?: number;
+  windowDeltaLabel: string;
+  detailDeltaLabel: string;
 };
 
 type AggregateRow = {
@@ -219,6 +222,8 @@ const translations = {
     windowAgentToken: "窗口 Agent token",
     windowWeightedByRequests: "窗口内按请求量加权",
     windowWeightedByCalls: "窗口内按调用量加权",
+    windowDeltaLabel: "窗口环比",
+    dailyDeltaLabel: "当日环比",
     requests: "请求量",
     activeUsers: "活跃用户",
     avgLatency: "平均延迟",
@@ -342,6 +347,8 @@ const translations = {
     windowAgentToken: "Window agent tokens",
     windowWeightedByRequests: "Weighted by requests in window",
     windowWeightedByCalls: "Weighted by calls in window",
+    windowDeltaLabel: "Window delta",
+    dailyDeltaLabel: "Daily delta",
     requests: "Requests",
     activeUsers: "Active users",
     avgLatency: "Avg latency",
@@ -465,6 +472,8 @@ const translations = {
     windowAgentToken: "Tokens Agent del periodo",
     windowWeightedByRequests: "Ponderado por solicitudes del periodo",
     windowWeightedByCalls: "Ponderado por llamadas del periodo",
+    windowDeltaLabel: "Periodo delta",
+    dailyDeltaLabel: "Diario delta",
     requests: "Solicitudes",
     activeUsers: "Usuarios activos",
     avgLatency: "Latencia media",
@@ -588,6 +597,8 @@ const translations = {
     windowAgentToken: "期間 Agent token",
     windowWeightedByRequests: "期間内リクエスト数で加重",
     windowWeightedByCalls: "期間内呼び出し数で加重",
+    windowDeltaLabel: "期間比",
+    dailyDeltaLabel: "日次比",
     requests: "リクエスト",
     activeUsers: "アクティブユーザー",
     avgLatency: "平均レイテンシ",
@@ -711,6 +722,8 @@ const translations = {
     windowAgentToken: "기간 Agent token",
     windowWeightedByRequests: "기간 내 요청 수 기준 가중",
     windowWeightedByCalls: "기간 내 호출 수 기준 가중",
+    windowDeltaLabel: "기간 대비",
+    dailyDeltaLabel: "일별 대비",
     requests: "요청 수",
     activeUsers: "활성 사용자",
     avgLatency: "평균 지연",
@@ -834,6 +847,8 @@ const translations = {
     windowAgentToken: "窗口 Agent token",
     windowWeightedByRequests: "窗口內按請求量加權",
     windowWeightedByCalls: "窗口內按調用量加權",
+    windowDeltaLabel: "窗口環比",
+    dailyDeltaLabel: "當日環比",
     requests: "請求量",
     activeUsers: "活躍用戶",
     avgLatency: "平均延遲",
@@ -1028,7 +1043,7 @@ function App() {
       setIsCacheBacked(false);
     }
 
-    fetch(`/api/telemetry?days=${access.maxDays}`, authToken ? { headers: authHeaders(authToken) } : undefined)
+    fetch(`/api/telemetry?days=${access.maxDays}&compare=1`, authToken ? { headers: authHeaders(authToken) } : undefined)
       .then((response) => {
         if (response.status === 401) {
           clearAuthToken();
@@ -1821,15 +1836,26 @@ function ModelDashboard({
   canViewDetails: boolean;
   text: Copy;
 }) {
-  const filteredRecords = useMemo(
+  const scopedRecords = useMemo(
     () =>
       records.filter(
         (record) =>
-          activeDates.includes(record.date) &&
           (country === "all" || record.country === country) &&
           (providerFilter === "all" || record.provider === providerFilter),
       ),
-    [records, activeDates, country, providerFilter],
+    [records, country, providerFilter],
+  );
+  const filteredRecords = useMemo(
+    () => scopedRecords.filter((record) => activeDates.includes(record.date)),
+    [scopedRecords, activeDates],
+  );
+  const previousWindowDates = useMemo(
+    () => activeDates.map((date) => shiftDate(date, -activeDates.length)),
+    [activeDates],
+  );
+  const previousWindowRecords = useMemo(
+    () => recordsForDates(scopedRecords, previousWindowDates),
+    [scopedRecords, previousWindowDates],
   );
 
   const recordDates = collectRecordDates(filteredRecords);
@@ -1838,14 +1864,21 @@ function ModelDashboard({
   const latestRecords = filteredRecords.filter((record) => record.date === latestRecordDate);
   const previousRecords = filteredRecords.filter((record) => record.date === previousRecordDate);
   const totalTokens = sum(filteredRecords, "tokens");
+  const previousWindowTokens = sum(previousWindowRecords, "tokens");
   const totalRequests = sum(filteredRecords, "requests");
+  const previousWindowRequests = sum(previousWindowRecords, "requests");
   const totalActiveUsers = sum(filteredRecords, "activeUsers");
+  const previousWindowActiveUsers = sum(previousWindowRecords, "activeUsers");
   const latestTokens = sum(latestRecords, "tokens");
   const latestRequests = sum(latestRecords, "requests");
   const latestActiveUsers = sum(latestRecords, "activeUsers");
   const previousTokens = sum(previousRecords, "tokens");
-  const dailyDelta = delta(latestTokens, previousTokens);
+  const previousRequests = sum(previousRecords, "requests");
+  const previousActiveUsers = sum(previousRecords, "activeUsers");
   const avgLatency = weightedAverage(filteredRecords, "avgLatencyMs", "requests");
+  const previousWindowAvgLatency = weightedAverage(previousWindowRecords, "avgLatencyMs", "requests");
+  const latestAvgLatency = weightedAverage(latestRecords, "avgLatencyMs", "requests");
+  const previousAvgLatency = weightedAverage(previousRecords, "avgLatencyMs", "requests");
 
   const timeSeries = useMemo(
     () => buildModelTimeSeries(filteredRecords, activeDates, providerFilter),
@@ -1871,7 +1904,10 @@ function ModelDashboard({
           value={formatTokens(totalTokens)}
           detail={text.latestDayMetric(latestRecordDate, formatTokens(latestTokens))}
           tone="blue"
-          delta={dailyDelta}
+          windowDelta={compareDelta(totalTokens, previousWindowTokens)}
+          detailDelta={compareDelta(latestTokens, previousTokens)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={Network}
@@ -1879,6 +1915,10 @@ function ModelDashboard({
           value={formatCompact(totalRequests)}
           detail={text.latestDayMetric(latestRecordDate, formatCompact(latestRequests))}
           tone="green"
+          windowDelta={compareDelta(totalRequests, previousWindowRequests)}
+          detailDelta={compareDelta(latestRequests, previousRequests)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={Users}
@@ -1886,13 +1926,21 @@ function ModelDashboard({
           value={formatCompact(totalActiveUsers)}
           detail={text.latestDayMetric(latestRecordDate, formatCompact(latestActiveUsers))}
           tone="orange"
+          windowDelta={compareDelta(totalActiveUsers, previousWindowActiveUsers)}
+          detailDelta={compareDelta(latestActiveUsers, previousActiveUsers)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={Gauge}
           label={text.windowAvgLatency}
           value={`${Math.round(avgLatency)} ms`}
-          detail={text.windowWeightedByRequests}
+          detail={text.latestDayMetric(latestRecordDate, `${Math.round(latestAvgLatency)} ms`)}
           tone="purple"
+          windowDelta={compareDelta(avgLatency, previousWindowAvgLatency)}
+          detailDelta={compareDelta(latestAvgLatency, previousAvgLatency)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
       </section>
 
@@ -2038,15 +2086,26 @@ function AgentDashboard({
   canViewDetails: boolean;
   text: Copy;
 }) {
-  const filteredRecords = useMemo(
+  const scopedRecords = useMemo(
     () =>
       records.filter(
         (record) =>
-          activeDates.includes(record.date) &&
           (country === "all" || record.country === country) &&
           (frameworkFilter === "all" || record.framework === frameworkFilter),
       ),
-    [records, activeDates, country, frameworkFilter],
+    [records, country, frameworkFilter],
+  );
+  const filteredRecords = useMemo(
+    () => scopedRecords.filter((record) => activeDates.includes(record.date)),
+    [scopedRecords, activeDates],
+  );
+  const previousWindowDates = useMemo(
+    () => activeDates.map((date) => shiftDate(date, -activeDates.length)),
+    [activeDates],
+  );
+  const previousWindowRecords = useMemo(
+    () => recordsForDates(scopedRecords, previousWindowDates),
+    [scopedRecords, previousWindowDates],
   );
 
   const recordDates = collectRecordDates(filteredRecords);
@@ -2055,14 +2114,21 @@ function AgentDashboard({
   const latestRecords = filteredRecords.filter((record) => record.date === latestRecordDate);
   const previousRecords = filteredRecords.filter((record) => record.date === previousRecordDate);
   const totalInvocations = sum(filteredRecords, "invocations");
+  const previousWindowInvocations = sum(previousWindowRecords, "invocations");
   const latestInvocations = sum(latestRecords, "invocations");
   const previousInvocations = sum(previousRecords, "invocations");
   const totalToolCalls = sum(filteredRecords, "toolCalls");
+  const previousWindowToolCalls = sum(previousWindowRecords, "toolCalls");
   const latestToolCalls = sum(latestRecords, "toolCalls");
+  const previousToolCalls = sum(previousRecords, "toolCalls");
   const totalTokens = sum(filteredRecords, "tokens");
+  const previousWindowTokens = sum(previousWindowRecords, "tokens");
   const latestTokens = sum(latestRecords, "tokens");
+  const previousTokens = sum(previousRecords, "tokens");
   const avgSuccess = weightedAverage(filteredRecords, "successRate", "invocations");
-  const dailyDelta = delta(latestInvocations, previousInvocations);
+  const previousWindowAvgSuccess = weightedAverage(previousWindowRecords, "successRate", "invocations");
+  const latestAvgSuccess = weightedAverage(latestRecords, "successRate", "invocations");
+  const previousAvgSuccess = weightedAverage(previousRecords, "successRate", "invocations");
   const hasEstimatedRecords = filteredRecords.some((record) => record.isEstimate);
 
   const timeSeries = useMemo(
@@ -2091,7 +2157,10 @@ function AgentDashboard({
           value={formatCompact(totalInvocations)}
           detail={text.latestDayMetric(latestRecordDate, formatCompact(latestInvocations))}
           tone="blue"
-          delta={dailyDelta}
+          windowDelta={compareDelta(totalInvocations, previousWindowInvocations)}
+          detailDelta={compareDelta(latestInvocations, previousInvocations)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={Workflow}
@@ -2099,13 +2168,25 @@ function AgentDashboard({
           value={formatCompact(totalToolCalls)}
           detail={text.latestDayMetric(latestRecordDate, formatCompact(latestToolCalls))}
           tone="green"
+          windowDelta={compareDelta(totalToolCalls, previousWindowToolCalls)}
+          detailDelta={compareDelta(latestToolCalls, previousToolCalls)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={CheckCircle2}
           label={text.windowSuccessRate}
           value={formatPercent(avgSuccess / 100)}
-          detail={hasEstimatedRecords ? text.undisclosedSuccess : text.windowWeightedByCalls}
+          detail={
+            hasEstimatedRecords
+              ? `${text.latestDayMetric(latestRecordDate, formatPercent(latestAvgSuccess / 100))} · ${text.undisclosedSuccess}`
+              : text.latestDayMetric(latestRecordDate, formatPercent(latestAvgSuccess / 100))
+          }
           tone="orange"
+          windowDelta={compareDelta(avgSuccess, previousWindowAvgSuccess)}
+          detailDelta={compareDelta(latestAvgSuccess, previousAvgSuccess)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
         <MetricCard
           icon={DatabaseZap}
@@ -2113,6 +2194,10 @@ function AgentDashboard({
           value={formatTokens(totalTokens)}
           detail={text.latestDayMetric(latestRecordDate, formatTokens(latestTokens))}
           tone="purple"
+          windowDelta={compareDelta(totalTokens, previousWindowTokens)}
+          detailDelta={compareDelta(latestTokens, previousTokens)}
+          windowDeltaLabel={text.windowDeltaLabel}
+          detailDeltaLabel={text.dailyDeltaLabel}
         />
       </section>
 
@@ -2218,7 +2303,17 @@ function AgentDashboard({
   );
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone, delta: deltaValue }: MetricCardProps) {
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone,
+  windowDelta,
+  detailDelta,
+  windowDeltaLabel,
+  detailDeltaLabel,
+}: MetricCardProps) {
   return (
     <article className={`metric-card ${tone}`}>
       <div className="metric-icon">
@@ -2226,10 +2321,15 @@ function MetricCard({ icon: Icon, label, value, detail, tone, delta: deltaValue 
       </div>
       <div>
         <span>{label}</span>
-        <strong>{value}</strong>
-        <p>{detail}</p>
+        <div className="metric-value-line">
+          <strong>{value}</strong>
+          {typeof windowDelta === "number" && <TrendChip value={windowDelta} compact label={windowDeltaLabel} />}
+        </div>
+        <div className="metric-detail-line">
+          <p>{detail}</p>
+          {typeof detailDelta === "number" && <TrendChip value={detailDelta} compact label={detailDeltaLabel} />}
+        </div>
       </div>
-      {typeof deltaValue === "number" && <TrendChip value={deltaValue} compact />}
     </article>
   );
 }
@@ -2327,13 +2427,14 @@ function EmptyState({ message }: { message: string }) {
   return <div className="empty-state">{message}</div>;
 }
 
-function TrendChip({ value, compact = false }: { value: number; compact?: boolean }) {
+function TrendChip({ value, compact = false, label }: { value: number; compact?: boolean; label?: string }) {
   const tone = trendTone(value);
   const Icon = tone === "up" ? TrendingUp : tone === "down" ? TrendingDown : CircleAlert;
 
   return (
     <span className={`trend-chip ${tone} ${compact ? "compact" : ""}`}>
       <Icon size={14} aria-hidden="true" />
+      {label ? `${label} ` : ""}
       {value >= 0 ? "+" : ""}
       {formatPercent(value)}
     </span>
@@ -2719,6 +2820,19 @@ function shiftDate(date: string, offset: number) {
 
 function collectRecordDates(records: Array<ModelUsageRecord | AgentUsageRecord>) {
   return Array.from(new Set(records.map((record) => record.date))).filter(Boolean).sort();
+}
+
+function recordsForDates<T extends { date: string }>(records: T[], dates: string[]) {
+  const dateSet = new Set(dates);
+  return records.filter((record) => dateSet.has(record.date));
+}
+
+function compareDelta(current: number, previous: number) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
+    return undefined;
+  }
+
+  return (current - previous) / previous;
 }
 
 function aggregateModelRows(records: ModelUsageRecord[], total: number, latestDate: string, previousDate: string) {
