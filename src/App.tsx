@@ -209,6 +209,16 @@ const translations = {
     totalTokens: "总 token",
     windowTokens: "窗口 token",
     latestDayTokens: (date: string, value: string) => `${date} 当日 ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} 当日 ${value}`,
+    windowRequests: "窗口请求量",
+    windowActiveUsers: "窗口活跃用户",
+    windowAvgLatency: "窗口平均延迟",
+    windowEstimatedCalls: "窗口估算调用",
+    windowToolCalls: "窗口工具调用",
+    windowSuccessRate: "窗口成功率",
+    windowAgentToken: "窗口 Agent token",
+    windowWeightedByRequests: "窗口内按请求量加权",
+    windowWeightedByCalls: "窗口内按调用量加权",
     requests: "请求量",
     activeUsers: "活跃用户",
     avgLatency: "平均延迟",
@@ -322,6 +332,16 @@ const translations = {
     totalTokens: "Total tokens",
     windowTokens: "Window tokens",
     latestDayTokens: (date: string, value: string) => `${date} daily ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} daily ${value}`,
+    windowRequests: "Window requests",
+    windowActiveUsers: "Window active users",
+    windowAvgLatency: "Window avg latency",
+    windowEstimatedCalls: "Window estimated calls",
+    windowToolCalls: "Window tool calls",
+    windowSuccessRate: "Window success rate",
+    windowAgentToken: "Window agent tokens",
+    windowWeightedByRequests: "Weighted by requests in window",
+    windowWeightedByCalls: "Weighted by calls in window",
     requests: "Requests",
     activeUsers: "Active users",
     avgLatency: "Avg latency",
@@ -435,6 +455,16 @@ const translations = {
     totalTokens: "Tokens totales",
     windowTokens: "Tokens del periodo",
     latestDayTokens: (date: string, value: string) => `${date} diario ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} diario ${value}`,
+    windowRequests: "Solicitudes del periodo",
+    windowActiveUsers: "Usuarios activos del periodo",
+    windowAvgLatency: "Latencia media del periodo",
+    windowEstimatedCalls: "Llamadas estimadas del periodo",
+    windowToolCalls: "Herramientas del periodo",
+    windowSuccessRate: "Exito del periodo",
+    windowAgentToken: "Tokens Agent del periodo",
+    windowWeightedByRequests: "Ponderado por solicitudes del periodo",
+    windowWeightedByCalls: "Ponderado por llamadas del periodo",
     requests: "Solicitudes",
     activeUsers: "Usuarios activos",
     avgLatency: "Latencia media",
@@ -548,6 +578,16 @@ const translations = {
     totalTokens: "総 token",
     windowTokens: "期間 token",
     latestDayTokens: (date: string, value: string) => `${date} 日次 ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} 日次 ${value}`,
+    windowRequests: "期間リクエスト",
+    windowActiveUsers: "期間アクティブユーザー",
+    windowAvgLatency: "期間平均レイテンシ",
+    windowEstimatedCalls: "期間推定呼び出し",
+    windowToolCalls: "期間ツール呼び出し",
+    windowSuccessRate: "期間成功率",
+    windowAgentToken: "期間 Agent token",
+    windowWeightedByRequests: "期間内リクエスト数で加重",
+    windowWeightedByCalls: "期間内呼び出し数で加重",
     requests: "リクエスト",
     activeUsers: "アクティブユーザー",
     avgLatency: "平均レイテンシ",
@@ -661,6 +701,16 @@ const translations = {
     totalTokens: "총 token",
     windowTokens: "기간 token",
     latestDayTokens: (date: string, value: string) => `${date} 일별 ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} 일별 ${value}`,
+    windowRequests: "기간 요청 수",
+    windowActiveUsers: "기간 활성 사용자",
+    windowAvgLatency: "기간 평균 지연",
+    windowEstimatedCalls: "기간 추정 호출",
+    windowToolCalls: "기간 도구 호출",
+    windowSuccessRate: "기간 성공률",
+    windowAgentToken: "기간 Agent token",
+    windowWeightedByRequests: "기간 내 요청 수 기준 가중",
+    windowWeightedByCalls: "기간 내 호출 수 기준 가중",
     requests: "요청 수",
     activeUsers: "활성 사용자",
     avgLatency: "평균 지연",
@@ -774,6 +824,16 @@ const translations = {
     totalTokens: "總 token",
     windowTokens: "窗口 token",
     latestDayTokens: (date: string, value: string) => `${date} 當日 ${value}`,
+    latestDayMetric: (date: string, value: string) => `${date} 當日 ${value}`,
+    windowRequests: "窗口請求量",
+    windowActiveUsers: "窗口活躍用戶",
+    windowAvgLatency: "窗口平均延遲",
+    windowEstimatedCalls: "窗口估算調用",
+    windowToolCalls: "窗口工具調用",
+    windowSuccessRate: "窗口成功率",
+    windowAgentToken: "窗口 Agent token",
+    windowWeightedByRequests: "窗口內按請求量加權",
+    windowWeightedByCalls: "窗口內按調用量加權",
     requests: "請求量",
     activeUsers: "活躍用戶",
     avgLatency: "平均延遲",
@@ -1781,11 +1841,11 @@ function ModelDashboard({
   const totalRequests = sum(filteredRecords, "requests");
   const totalActiveUsers = sum(filteredRecords, "activeUsers");
   const latestTokens = sum(latestRecords, "tokens");
+  const latestRequests = sum(latestRecords, "requests");
+  const latestActiveUsers = sum(latestRecords, "activeUsers");
   const previousTokens = sum(previousRecords, "tokens");
   const dailyDelta = delta(latestTokens, previousTokens);
-  const avgCoverage = weightedAverage(filteredRecords, "coverage", "tokens");
   const avgLatency = weightedAverage(filteredRecords, "avgLatencyMs", "requests");
-  const modelCount = new Set(filteredRecords.map((record) => record.model)).size;
 
   const timeSeries = useMemo(
     () => buildModelTimeSeries(filteredRecords, activeDates, providerFilter),
@@ -1809,29 +1869,29 @@ function ModelDashboard({
           icon={DatabaseZap}
           label={text.windowTokens}
           value={formatTokens(totalTokens)}
-          detail={text.latestDayTokens(latestRecordDate, formatTokens(latestTokens))}
+          detail={text.latestDayMetric(latestRecordDate, formatTokens(latestTokens))}
           tone="blue"
           delta={dailyDelta}
         />
         <MetricCard
           icon={Network}
-          label={text.requests}
+          label={text.windowRequests}
           value={formatCompact(totalRequests)}
-          detail={text.modelSeries(modelCount)}
+          detail={text.latestDayMetric(latestRecordDate, formatCompact(latestRequests))}
           tone="green"
         />
         <MetricCard
           icon={Users}
-          label={text.activeUsers}
+          label={text.windowActiveUsers}
           value={formatCompact(totalActiveUsers)}
-          detail={`${text.coverage} ${formatPercent(avgCoverage / 100)}`}
+          detail={text.latestDayMetric(latestRecordDate, formatCompact(latestActiveUsers))}
           tone="orange"
         />
         <MetricCard
           icon={Gauge}
-          label={text.avgLatency}
+          label={text.windowAvgLatency}
           value={`${Math.round(avgLatency)} ms`}
-          detail={text.weightedByRequests}
+          detail={text.windowWeightedByRequests}
           tone="purple"
         />
       </section>
@@ -1998,9 +2058,10 @@ function AgentDashboard({
   const latestInvocations = sum(latestRecords, "invocations");
   const previousInvocations = sum(previousRecords, "invocations");
   const totalToolCalls = sum(filteredRecords, "toolCalls");
+  const latestToolCalls = sum(latestRecords, "toolCalls");
   const totalTokens = sum(filteredRecords, "tokens");
+  const latestTokens = sum(latestRecords, "tokens");
   const avgSuccess = weightedAverage(filteredRecords, "successRate", "invocations");
-  const avgSteps = weightedAverage(filteredRecords, "avgSteps", "invocations");
   const dailyDelta = delta(latestInvocations, previousInvocations);
   const hasEstimatedRecords = filteredRecords.some((record) => record.isEstimate);
 
@@ -2026,31 +2087,31 @@ function AgentDashboard({
       <section className="metric-grid">
         <MetricCard
           icon={Bot}
-          label={text.estimatedCalls}
+          label={text.windowEstimatedCalls}
           value={formatCompact(totalInvocations)}
-          detail={hasEstimatedRecords ? text.publicTokenRatio : `${latestRecordDate} ${formatCompact(latestInvocations)}`}
+          detail={text.latestDayMetric(latestRecordDate, formatCompact(latestInvocations))}
           tone="blue"
           delta={dailyDelta}
         />
         <MetricCard
           icon={Workflow}
-          label={text.toolCalls}
+          label={text.windowToolCalls}
           value={formatCompact(totalToolCalls)}
-          detail={totalToolCalls ? `${formatRatio(totalToolCalls, totalInvocations)} / call` : text.undisclosedPublicSource}
+          detail={text.latestDayMetric(latestRecordDate, formatCompact(latestToolCalls))}
           tone="green"
         />
         <MetricCard
           icon={CheckCircle2}
-          label={text.successRate}
+          label={text.windowSuccessRate}
           value={formatPercent(avgSuccess / 100)}
-          detail={hasEstimatedRecords ? text.undisclosedSuccess : text.averageSteps(avgSteps.toFixed(1))}
+          detail={hasEstimatedRecords ? text.undisclosedSuccess : text.windowWeightedByCalls}
           tone="orange"
         />
         <MetricCard
           icon={DatabaseZap}
-          label={text.agentToken}
+          label={text.windowAgentToken}
           value={formatTokens(totalTokens)}
-          detail={text.agentContextToken}
+          detail={text.latestDayMetric(latestRecordDate, formatTokens(latestTokens))}
           tone="purple"
         />
       </section>
@@ -2867,14 +2928,6 @@ function formatCompact(value: number) {
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(Math.abs(value) < 0.1 ? 1 : 0)}%`;
-}
-
-function formatRatio(numerator: number, denominator: number) {
-  if (!denominator) {
-    return "0";
-  }
-
-  return (numerator / denominator).toFixed(1);
 }
 
 function formatDateLabel(date: string) {
