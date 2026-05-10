@@ -207,6 +207,8 @@ const translations = {
     agentEstimated: "Agent 调用含估算",
     notGlobalTotal: "不等同于全球全量",
     totalTokens: "总 token",
+    windowTokens: "窗口 token",
+    latestDayTokens: (date: string, value: string) => `${date} 当日 ${value}`,
     requests: "请求量",
     activeUsers: "活跃用户",
     avgLatency: "平均延迟",
@@ -318,6 +320,8 @@ const translations = {
     agentEstimated: "Agent calls include estimates",
     notGlobalTotal: "Not global all-provider total",
     totalTokens: "Total tokens",
+    windowTokens: "Window tokens",
+    latestDayTokens: (date: string, value: string) => `${date} daily ${value}`,
     requests: "Requests",
     activeUsers: "Active users",
     avgLatency: "Avg latency",
@@ -429,6 +433,8 @@ const translations = {
     agentEstimated: "Llamadas de agentes estimadas",
     notGlobalTotal: "No es total global completo",
     totalTokens: "Tokens totales",
+    windowTokens: "Tokens del periodo",
+    latestDayTokens: (date: string, value: string) => `${date} diario ${value}`,
     requests: "Solicitudes",
     activeUsers: "Usuarios activos",
     avgLatency: "Latencia media",
@@ -540,6 +546,8 @@ const translations = {
     agentEstimated: "Agent 呼び出しには推定値を含む",
     notGlobalTotal: "世界全体の完全な総量ではありません",
     totalTokens: "総 token",
+    windowTokens: "期間 token",
+    latestDayTokens: (date: string, value: string) => `${date} 日次 ${value}`,
     requests: "リクエスト",
     activeUsers: "アクティブユーザー",
     avgLatency: "平均レイテンシ",
@@ -651,6 +659,8 @@ const translations = {
     agentEstimated: "Agent 호출에는 추정치 포함",
     notGlobalTotal: "전 세계 전체 총량과 같지 않음",
     totalTokens: "총 token",
+    windowTokens: "기간 token",
+    latestDayTokens: (date: string, value: string) => `${date} 일별 ${value}`,
     requests: "요청 수",
     activeUsers: "활성 사용자",
     avgLatency: "평균 지연",
@@ -762,6 +772,8 @@ const translations = {
     agentEstimated: "Agent 調用包含估算",
     notGlobalTotal: "唔等於全球全量",
     totalTokens: "總 token",
+    windowTokens: "窗口 token",
+    latestDayTokens: (date: string, value: string) => `${date} 當日 ${value}`,
     requests: "請求量",
     activeUsers: "活躍用戶",
     avgLatency: "平均延遲",
@@ -1795,9 +1807,9 @@ function ModelDashboard({
       <section className="metric-grid">
         <MetricCard
           icon={DatabaseZap}
-          label={text.totalTokens}
+          label={text.windowTokens}
           value={formatTokens(totalTokens)}
-          detail={`${latestRecordDate} ${formatTokens(latestTokens)}`}
+          detail={text.latestDayTokens(latestRecordDate, formatTokens(latestTokens))}
           tone="blue"
           delta={dailyDelta}
         />
@@ -2363,16 +2375,20 @@ function aggregateModelProviders(records: ModelUsageRecord[], total: number): Ag
 }
 
 function aggregateAgentFrameworks(records: AgentUsageRecord[], total: number): AggregateRow[] {
-  return agentFrameworks
-    .map((framework) => {
+  const frameworkNames = Array.from(
+    new Set([...agentFrameworks.map((framework) => framework.framework), ...records.map((record) => record.framework)]),
+  ).filter(Boolean);
+
+  return frameworkNames
+    .map((framework, index) => {
       const value = sum(
-        records.filter((record) => record.framework === framework.framework),
+        records.filter((record) => record.framework === framework),
         "invocations",
       );
       return {
-        key: framework.framework,
+        key: framework,
         value,
-        color: framework.color,
+        color: frameworkColor(framework, index),
         share: total ? value / total : 0,
       };
     })
@@ -2784,6 +2800,19 @@ function topMapKey(map: Map<string, number>) {
   return Array.from(map.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "-";
 }
 
+function frameworkColor(framework: string, fallbackIndex = 0) {
+  const configured = agentFrameworks.find((item) => item.framework === framework)?.color;
+  if (configured) {
+    return configured;
+  }
+
+  let hash = fallbackIndex;
+  for (let index = 0; index < framework.length; index += 1) {
+    hash = Math.imul(hash ^ framework.charCodeAt(index), 16777619);
+  }
+  return frameworkPalette[Math.abs(hash) % frameworkPalette.length];
+}
+
 function categoryColor(category: string) {
   const index = agentCategories.findIndex((item) => item.category === category);
   return categoryPalette[index >= 0 ? index % categoryPalette.length : 0];
@@ -2863,6 +2892,7 @@ const tooltipStyle = {
 };
 
 const categoryPalette = ["#2563eb", "#16a34a", "#f59e0b", "#7c3aed", "#dc2626", "#0891b2", "#be123c"];
+const frameworkPalette = ["#2563eb", "#0f766e", "#c2410c", "#7c3aed", "#d97706", "#0891b2", "#db2777", "#475569"];
 const countryPalette = [
   "#2563eb",
   "#16a34a",
