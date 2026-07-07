@@ -6,8 +6,8 @@ This project supports direct API connectors and normalized exports. Direct API c
 
 | Source | Connector | Env |
 | --- | --- | --- |
-| OpenRouter public model rankings | `publicWebConnector.ts` | `MODEL_MONITOR_PUBLIC_WEB` |
-| OpenRouter public Apps/Agents rankings | `publicWebConnector.ts` | `MODEL_MONITOR_PUBLIC_WEB` |
+| OpenRouter public model rankings | `publicWebConnector.ts` | `MODEL_MONITOR_PUBLIC_WEB`, `OPENROUTER_API_KEY` |
+| OpenRouter public Apps/Agents rankings | `publicWebConnector.ts` | `MODEL_MONITOR_PUBLIC_WEB`, `OPENROUTER_API_KEY`, `MODEL_MONITOR_OPENROUTER_APP_DAILY_DAYS` |
 | Hugging Face model downloads | `publicWebConnector.ts` | `MODEL_MONITOR_PUBLIC_WEB` |
 | OpenAI Usage API | `openaiConnector.ts` | `OPENAI_ADMIN_KEY` |
 | Anthropic Usage & Cost API | `anthropicConnector.ts` | `ANTHROPIC_ADMIN_KEY` |
@@ -71,6 +71,18 @@ LANGFUSE_MAX_PAGES=20
 LANGFUSE_LIMIT=100
 ```
 
+OpenRouter public datasets:
+
+```bash
+OPENROUTER_API_KEY=
+MODEL_MONITOR_PUBLIC_WEB=true
+MODEL_MONITOR_PUBLIC_WEB_TTL_SECONDS=18000
+MODEL_MONITOR_OPENROUTER_APP_DAILY_DAYS=7
+MODEL_MONITOR_OPENROUTER_APP_LIMIT=50
+```
+
+`rankings-daily` is fetched in one request for the requested date window. `app-rankings` is fetched one UTC day at a time because the OpenRouter API returns app totals for a requested window rather than a daily row set. Keep `MODEL_MONITOR_OPENROUTER_APP_DAILY_DAYS` low for normal service traffic; use a one-off `npm run db:sync` with a larger value for historical backfill.
+
 ## Production deployment
 
 Build and run:
@@ -112,7 +124,7 @@ Runtime behavior:
 
 ## Data truthfulness notes
 
-- Public OpenRouter model rankings are real OpenRouter usage statistics, not global all-provider traffic.
-- Public OpenRouter Apps/Agents rankings expose token volume only; invocation counts are estimated by this project.
+- Public OpenRouter model rankings are real OpenRouter usage statistics, not global all-provider traffic. The official dataset returns `total_tokens`; prompt/completion split and request count are not disclosed there.
+- Public OpenRouter Apps/Agents rankings expose token and request volume for public OpenRouter apps. Success rate, tool calls, task completion, and handoff are not disclosed by OpenRouter, so those fields remain estimates/placeholders in this project.
 - Hugging Face downloads are discovery/heat signals and are intentionally excluded from token totals.
 - Country charts only use rows with a known country or region-derived country. Unknown `ZZ` rows are excluded from country share charts.
